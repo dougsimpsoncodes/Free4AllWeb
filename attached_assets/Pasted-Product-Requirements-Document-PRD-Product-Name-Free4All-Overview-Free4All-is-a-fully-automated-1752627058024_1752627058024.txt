@@ -1,0 +1,174 @@
+Product Requirements Document (PRD)
+
+Product Name: Free4All
+
+Overview:
+Free4All is a fully automated website that notifies users when free or discounted food is available based on the outcome of local sports games—starting with the Los Angeles Dodgers. The site scrapes verified sources for third-party food deals (not ticket-holder giveaways), cross-checks game outcomes via the MLB Stats API, and publishes active deals each day. Users visit the website to view which offers are valid, with optional alerts via email or SMS.
+
+Context Recap:
+This PRD reflects a detailed step-by-step discussion covering:
+
+Manual verification of Dodgers-related food promotions via Reddit, brand sites, and the official team website
+
+Elimination of stadium-specific giveaways in favor of performance-based food offers
+
+Confirmation of specific promo rules and sources for Panda Express, McDonald’s, Jack in the Box, AMPM, and Taco Bell
+
+Validation of a recent game result (Dodgers vs. Astros on July 6, 2025), confirming no promos were triggered due to poor team performance
+
+Clear user preference to avoid building a mobile app; instead, focus on a simple, web-based delivery system
+
+Target Users:
+
+Los Angeles area residents
+
+Casual sports fans, students, parents, and bargain-hunters
+
+Users interested in free food, regardless of sports affiliation
+
+Verified Dodgers Game-Triggered Promotions (2025):
+
+Partner
+
+Trigger Condition
+
+Reward
+
+Panda Express
+
+Dodgers win at home
+
+$6 two-item plate (code: DODGERSWIN, app/online redemption)
+
+McDonald's
+
+Dodgers score 6+ runs
+
+Free 6pc McNuggets with $2 purchase (app only)
+
+Jack in the Box
+
+Dodgers record 7+ strikeouts
+
+Free Jumbo Jack w/ large Coca-Cola purchase (app)
+
+AMPM
+
+Dodgers steal a base at home
+
+Free hot dog + 12oz Slim Coke (via ampm app)
+
+Taco Bell
+
+Any player steals a base in World Series
+
+Free Doritos Locos Taco (national promo during playoffs)
+
+Key Features:
+
+Homepage with Daily Promo Summary
+
+“Today’s Free Deals” section, updated by 10AM PST
+
+Each deal includes trigger condition, game stats, and redemption instructions
+
+Game Outcome Integration
+
+Nightly script pulls box scores from MLB Stats API
+
+Validates whether promo triggers were met
+
+Marks each promo as "Active" or "Not Triggered"
+
+Source-Specific Scraper
+
+Scrapes brand-specific sites, Dodgers official page, and Reddit threads
+
+Extracts promo language, eligibility requirements, and active periods
+
+Flags expired or ambiguous promotions for admin review
+
+Alert Subscription System
+
+Optional email or SMS alerts when a new deal goes live
+
+Users select preferred teams and brands (Dodgers-only at MVP)
+
+Email: Teaser + link to site
+
+SMS: Short deal summary + link
+
+Promo Detail Pages
+
+Full explanation of each promo’s rules
+
+Screenshots or quote of the original offer (when available)
+
+Link to redeem in brand app (if required)
+
+Admin Dashboard (Basic MVP)
+
+Manual override/edit of deal content
+
+Promo history and validation logs
+
+Error logging for scraper/API issues
+
+Tech Stack:
+
+Frontend: HTML, CSS, JavaScript (hosted via Replit or static site host)
+
+Backend: Python (Flask or FastAPI)
+
+Database: Firebase Firestore or SQLite (to store promos + outcomes)
+
+Scraping Tools: BeautifulSoup, Reddit API
+
+Email/SMS Alerts: Firebase Functions or Twilio (optional for MVP)
+
+Game Data: MLB Stats API (free tier)
+
+MVP Scope:
+
+Dodgers only
+
+5 verified food chains
+
+Website updated once daily with accurate game-based promo status
+
+Email/SMS alerts optional, basic sign-up form
+
+Future Features:
+
+Add Angels, USC, UCLA, and more teams
+
+Multi-city support with ZIP-based filtering
+
+Promo expiration timers
+
+Real-time deal activation via webhook or live scoring API
+
+Bilingual interface (English/Spanish)
+
+Analytics for clickthroughs and redemptions (via UTM tags or redirects)
+
+Open Decisions:
+
+Should we require user sign-up for deal access, or keep the homepage public?
+
+Should the site allow users to report expired or broken deals?
+
+Should we show missed deals ("You could have had free nuggets yesterday") to drive retention?
+
+Next Steps:
+
+Build initial static site with sample deal cards
+
+Implement MLB game result checker (Python + API)
+
+Launch nightly scraper and validation script
+
+Set up optional email/SMS opt-in
+
+Publish live site and begin collecting usage data
+
