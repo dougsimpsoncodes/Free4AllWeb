@@ -1,0 +1,15 @@
+[
+  {
+    "id": "de534f9eceea",
+    "restaurantName": "McDonald's",
+    "teamName": "Los Angeles Dodgers",
+    "dealText": "Free 6pc McNuggets when Dodgers score 6+ runs at home",
+    "promoCode": "DODGERS6",
+    "sourceUrl": "https://www.mcdonalds.com/us/en-us/deals.html",
+    "triggerCondition": "team_scores_6_plus",
+    "validUntil": "2025-10-31T00:00:00.000Z",
+    "confidence": 0.7,
+    "status": "pending",
+    "discoveredAt": "2025-07-17T19:21:51.335Z"
+  }
+]

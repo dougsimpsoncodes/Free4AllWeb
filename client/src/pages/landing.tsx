@@ -7,6 +7,7 @@ import { Link } from "wouter";
 import RestaurantLogo from "@/components/RestaurantLogo";
 import FoodImage from "@/components/FoodImage";
 import DemoModeToggle from "@/components/DemoModeToggle";
+import AdminToggle from "@/components/AdminToggle";
 import EnhancedActiveDeals from "@/components/EnhancedActiveDeals";
 
 export default function Landing() {
@@ -48,6 +49,7 @@ export default function Landing() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
         <DemoModeToggle onToggle={setDemoMode} />
+        <AdminToggle />
         
         {/* Header with demo user info */}
         <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
@@ -77,6 +79,7 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-white">
       <DemoModeToggle onToggle={setDemoMode} />
+      <AdminToggle />
       
       {/* Header */}
       <nav className="bg-gradient-to-r from-green-600 to-blue-600 shadow-lg sticky top-0 z-50">

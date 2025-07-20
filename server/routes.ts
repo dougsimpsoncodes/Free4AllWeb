@@ -8,19 +8,323 @@ import { db } from "./db";
 import { games, teams, promotions, restaurants, triggeredDeals } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { dealDiscoveryService } from "./services/dealImageScrapingService";
+import { enhancedDealDiscoveryService } from "./services/enhancedDealDiscovery";
+import { realTimeDealMonitor } from "./services/realTimeDealMonitor";
+import { dealPatternMatcher } from "./services/dealPatternMatcher";
+import { dealMigrationService } from "./services/dealMigrationService";
 import path from "path";
 import fs from "fs";
 import { multiSportsApiService } from "./services/multiSportsApiService";
 import { promotionService } from "./services/promotionService";
 import { seedSportsData } from "./seedData";
 import { gameScrapingService } from "./services/gameScrapingService";
-import { promotionService } from "./services/promotionService";
 import { emailService } from "./services/emailService";
+import { smsService } from "./services/smsService";
+import { registerNotificationRoutes } from "./routes/notifications";
+import { registerGameSchedulingRoutes } from "./routes/gameScheduling";
 import { insertAlertPreferenceSchema, insertPromotionSchema, insertTeamSchema, insertRestaurantSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
+
+  // Register notification routes
+  registerNotificationRoutes(app);
+  
+  // Register game scheduling routes
+  registerGameSchedulingRoutes(app);
+  
+  // Register deal verification routes
+  const dealVerificationRoutes = await import("./routes/dealVerification");
+  app.use('/api/deal-verification', dealVerificationRoutes.default);
+  
+  // Email showcase route for testing all email types
+  app.post('/api/email/showcase', async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ error: 'Email address required' });
+      }
+
+      console.log(`Sending email showcase to ${email}...`);
+      const emailsSent = [];
+
+      // 1. Pre-game Alert
+      try {
+        await emailService.sendPreGameAlert(email, {
+          homeTeam: 'LA Dodgers',
+          awayTeam: 'San Francisco Giants',
+          gameTime: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
+          venue: 'Dodger Stadium',
+          potentialDeals: [
+            {
+              restaurant: 'Panda Express',
+              offer: '$6 Panda Plate Deal',
+              trigger: 'Dodgers win any game'
+            },
+            {
+              restaurant: 'McDonald\'s',
+              offer: 'Free Big Mac',
+              trigger: 'Dodgers win home game with 6+ runs'
+            }
+          ]
+        });
+        emailsSent.push('Pre-game Alert');
+        console.log('✅ Sent: Pre-game Alert');
+      } catch (error) {
+        console.warn('Failed to send pre-game alert:', error.message);
+      }
+
+      // Wait 10 seconds between emails to avoid rate limits
+      await new Promise(resolve => setTimeout(resolve, 10000));
+
+      // 2. Post-game Victory Alert with Triggered Deals
+      try {
+        await emailService.sendPostGameAlert(email, {
+          homeTeam: 'LA Dodgers',
+          awayTeam: 'San Francisco Giants',
+          finalScore: 'Dodgers 8, Giants 3',
+          gameDate: new Date(),
+          triggeredDeals: [
+            {
+              restaurant: 'Panda Express',
+              offer: '$6 Panda Plate Deal',
+              promoCode: 'DODGERSWIN',
+              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+              instructions: 'Show this email at any Panda Express location'
+            },
+            {
+              restaurant: 'McDonald\'s',
+              offer: 'Free Big Mac',
+              promoCode: 'DODGERS8RUNS',
+              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+              instructions: 'Use mobile app or mention promo code at counter'
+            }
+          ]
+        });
+        emailsSent.push('Post-game Victory Alert');
+        console.log('✅ Sent: Post-game Victory Alert');
+      } catch (error) {
+        console.warn('Failed to send post-game alert:', error.message);
+      }
+
+      res.json({ 
+        success: true, 
+        message: `Email showcase sent to ${email}`,
+        emailsSent,
+        note: 'Check your email for the complete notification experience!'
+      });
+
+    } catch (error) {
+      console.error('Error sending email showcase:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // SMS testing endpoints
+  app.post('/api/sms/test', async (req, res) => {
+    try {
+      const { phoneNumber } = req.body;
+      if (!phoneNumber) {
+        return res.status(400).json({ error: 'Phone number required' });
+      }
+
+      console.log(`Testing SMS to ${phoneNumber}...`);
+      const result = await smsService.testSMS(phoneNumber);
+
+      res.json({
+        success: result.success,
+        message: result.success ? 'Test SMS sent successfully!' : 'SMS failed to send',
+        provider: result.provider,
+        messageId: result.messageId,
+        error: result.error,
+        quotaRemaining: result.quotaRemaining
+      });
+
+    } catch (error) {
+      console.error('Error testing SMS:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/sms/pregame-test', async (req, res) => {
+    try {
+      const { phoneNumber } = req.body;
+      if (!phoneNumber) {
+        return res.status(400).json({ error: 'Phone number required' });
+      }
+
+      const result = await smsService.sendPreGameSMSAlert(phoneNumber, {
+        homeTeam: 'LA Dodgers',
+        awayTeam: 'San Francisco Giants',
+        gameTime: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
+        venue: 'Dodger Stadium',
+        potentialDeals: [
+          {
+            restaurant: 'Panda Express',
+            offer: '$6 Panda Plate Deal',
+            trigger: 'Dodgers win any game'
+          },
+          {
+            restaurant: 'McDonald\'s',
+            offer: 'Free Big Mac',
+            trigger: 'Dodgers win home game with 6+ runs'
+          }
+        ]
+      });
+
+      res.json({
+        success: result.success,
+        message: result.success ? 'Pre-game SMS sent successfully!' : 'SMS failed to send',
+        provider: result.provider,
+        messageId: result.messageId,
+        error: result.error,
+        quotaRemaining: result.quotaRemaining
+      });
+
+    } catch (error) {
+      console.error('Error sending pre-game SMS:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/sms/postgame-test', async (req, res) => {
+    try {
+      const { phoneNumber } = req.body;
+      if (!phoneNumber) {
+        return res.status(400).json({ error: 'Phone number required' });
+      }
+
+      const result = await smsService.sendPostGameSMSAlert(phoneNumber, {
+        homeTeam: 'LA Dodgers',
+        awayTeam: 'San Francisco Giants',
+        finalScore: 'Dodgers 8, Giants 3',
+        triggeredDeals: [
+          {
+            restaurant: 'Panda Express',
+            offer: '$6 Panda Plate Deal',
+            promoCode: 'DODGERSWIN',
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            instructions: 'Show this text at any Panda Express location'
+          },
+          {
+            restaurant: 'McDonald\'s',
+            offer: 'Free Big Mac',
+            promoCode: 'DODGERSBIGMAC',
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            instructions: 'Valid at participating McDonald\'s locations'
+          }
+        ]
+      });
+
+      res.json({
+        success: result.success,
+        message: result.success ? 'Post-game SMS sent successfully!' : 'SMS failed to send',
+        provider: result.provider,
+        messageId: result.messageId,
+        error: result.error,
+        quotaRemaining: result.quotaRemaining
+      });
+
+    } catch (error) {
+      console.error('Error sending post-game SMS:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // SMS provider status endpoint
+  app.get('/api/sms/providers', async (req, res) => {
+    try {
+      const providers = await smsService.getProviderStatus();
+      res.json({
+        success: true,
+        providers
+      });
+    } catch (error) {
+      console.error('Error getting SMS provider status:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Direct Twilio test endpoint
+  app.post('/api/sms/twilio-direct', async (req, res) => {
+    try {
+      const { phoneNumber } = req.body;
+      if (!phoneNumber) {
+        return res.status(400).json({ error: 'Phone number required' });
+      }
+
+      // Test environment variables directly
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN; 
+      const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+      
+      console.log('Environment variables check:', {
+        hasAccountSid: !!accountSid,
+        accountSidLength: accountSid?.length || 0,
+        hasAuthToken: !!authToken,
+        authTokenLength: authToken?.length || 0,
+        hasFromNumber: !!fromNumber,
+        fromNumberLength: fromNumber?.length || 0
+      });
+
+      if (!accountSid || !authToken || !fromNumber) {
+        return res.status(400).json({ 
+          error: 'Twilio credentials missing from environment',
+          missing: {
+            accountSid: !accountSid,
+            authToken: !authToken,
+            fromNumber: !fromNumber
+          }
+        });
+      }
+
+      // Direct Twilio API call
+      const cleanPhone = phoneNumber.replace(/[^\d+]/g, '');
+      const message = '🧪 Free4All Direct Twilio Test\n\nThis message confirms your Twilio integration is working!\n\n🍔 Free4All';
+
+      const response = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            From: fromNumber,
+            To: cleanPhone,
+            Body: message
+          })
+        }
+      );
+
+      const result = await response.json() as any;
+      
+      if (response.ok && result.sid) {
+        console.log(`✅ Direct Twilio SMS sent to ${cleanPhone}`);
+        res.json({
+          success: true,
+          message: 'Direct Twilio test successful!',
+          provider: 'Twilio',
+          messageId: result.sid
+        });
+      } else {
+        console.warn(`❌ Direct Twilio SMS failed: ${result.message}`);
+        res.json({
+          success: false,
+          message: 'Direct Twilio test failed',
+          provider: 'Twilio',
+          error: result.message || 'Unknown Twilio error',
+          details: result
+        });
+      }
+
+    } catch (error) {
+      console.error('Error in direct Twilio test:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // Serve logos directly
   app.get('/logos/:filename', (req, res) => {
@@ -406,6 +710,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Development routes (no auth required for testing)
+  app.get('/api/mlb/games/status', async (req, res) => {
+    try {
+      const status = {
+        isRunning: true,
+        isProcessing: false,
+        lastCheck: new Date().toISOString()
+      };
+      res.json(status);
+    } catch (error) {
+      console.error('Error fetching game processor status:', error);
+      res.status(500).json({ message: 'Failed to fetch status' });
+    }
+  });
+
+  app.get('/api/mlb/games/today', async (req, res) => {
+    try {
+      const recentGames = await storage.getRecentGames(1, 10); // Dodgers recent games
+      res.json(recentGames);
+    } catch (error) {
+      console.error('Error fetching today\'s games:', error);
+      res.status(500).json({ message: 'Failed to fetch games' });
+    }
+  });
+
+  app.post('/api/mlb/games/process', async (req, res) => {
+    try {
+      await gameProcessor.processAllTeams();
+      res.json({ message: 'Game processing completed successfully' });
+    } catch (error) {
+      console.error('Error processing games:', error);
+      res.status(500).json({ message: 'Failed to process games' });
+    }
+  });
+
+  app.get('/api/admin/promotions', async (req, res) => {
+    try {
+      const promotions = await storage.getActivePromotions();
+      const formattedPromotions = promotions.map(p => ({
+        team: p.teamId || 'Unknown',
+        restaurant: p.restaurantId || 'Unknown', 
+        title: p.title,
+        trigger_condition: p.triggerCondition
+      }));
+      res.json(formattedPromotions);
+    } catch (error) {
+      console.error('Error fetching promotions:', error);
+      res.status(500).json({ message: 'Failed to fetch promotions' });
+    }
+  });
+
   // Admin routes for data management
   app.post('/api/admin/seed-data', async (req, res) => {
     try {
@@ -518,12 +873,183 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Deal discovery endpoints
+  // Development auth bypass for admin endpoints
+  const authMiddleware = process.env.NODE_ENV === 'development' ? (req: any, res: any, next: any) => {
+    // Mock authenticated user for development
+    req.user = { claims: { sub: 'dev-user-123' } };
+    next();
+  } : isAuthenticated;
+
+  // NEW: Enhanced Discovery Engine with Integrated Social Media Search
+  app.post("/api/admin/discovery/run", authMiddleware, async (req, res) => {
+    try {
+      console.log('🚀 Starting enhanced discovery engine with social media integration...');
+      
+      // Run both standard discovery and social media discovery simultaneously
+      const { dealDiscoveryEngine } = await import("./services/dealDiscoveryEngine");
+      const { socialMediaDiscovery } = await import('./services/socialMediaDiscovery');
+      
+      // Execute both discovery methods in parallel for maximum coverage
+      const [standardResults, socialResults] = await Promise.all([
+        dealDiscoveryEngine.runDiscovery().catch(err => {
+          console.error('Standard discovery error:', err);
+          return [];
+        }),
+        socialMediaDiscovery.discoverDealsLikeHuman().catch(err => {
+          console.error('Social media discovery error:', err);
+          return [];
+        })
+      ]);
+      
+      const totalResults = standardResults.length;
+      
+      res.json({
+        success: true,
+        message: `Discovery completed: ${totalResults} sites found via API search + social media integration`,
+        sitesCount: totalResults,
+        sites: standardResults.slice(0, 10), // Return first 10 for preview
+        includesSocialMedia: true
+      });
+    } catch (error) {
+      console.error("Discovery engine error:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.get("/api/admin/discovery/sites", authMiddleware, async (req, res) => {
+    try {
+      const precision = req.query.precision === 'true';
+      const limit = parseInt(req.query.limit as string) || 50;
+      
+      let sites;
+      if (precision) {
+        // Use precision filter for authentic deals only
+        const { precisionFilter } = await import('./services/precisionFilter');
+        sites = await precisionFilter.getAuthenticDeals(limit);
+      } else {
+        // Get all discovered sites
+        sites = await storage.getDiscoveredSites();
+        // Sort by confidence score (highest first)
+        sites = sites.sort((a, b) => {
+          const confidenceA = parseFloat(a.confidence) || 0;
+          const confidenceB = parseFloat(b.confidence) || 0;
+          return confidenceB - confidenceA;
+        });
+      }
+      
+      res.json({
+        success: true,
+        sites: sites,
+        count: sites.length
+      });
+    } catch (error) {
+      console.error("Error fetching discovered sites:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.get("/api/admin/discovery/pending", authMiddleware, async (req, res) => {
+    try {
+      const precision = req.query.precision === 'true';
+      const limit = parseInt(req.query.limit as string) || 50;
+      
+      let pendingSites;
+      if (precision) {
+        // Use precision filter for authentic deals only
+        const { precisionFilter } = await import('./services/precisionFilter');
+        const authenticSites = await precisionFilter.getAuthenticDeals(limit);
+        pendingSites = authenticSites.filter(site => site.status !== 'approved');
+      } else {
+        // Get all pending sites
+        pendingSites = await storage.getPendingDiscoveredSites();
+        // Sort by confidence score (highest first)
+        pendingSites = pendingSites.sort((a, b) => {
+          const confidenceA = parseFloat(a.confidence) || 0;
+          const confidenceB = parseFloat(b.confidence) || 0;
+          return confidenceB - confidenceA;
+        });
+      }
+      
+      res.json({
+        success: true,
+        sites: pendingSites,
+        count: pendingSites.length
+      });
+    } catch (error) {
+      console.error("Error fetching pending sites:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.put("/api/admin/discovery/sites/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const updatedSite = await storage.updateDiscoveredSite(parseInt(id), updates);
+      
+      res.json({
+        success: true,
+        site: updatedSite
+      });
+    } catch (error) {
+      console.error("Error updating discovered site:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.get("/api/admin/discovery/sources", authMiddleware, async (req, res) => {
+    try {
+      const sources = await storage.getDiscoverySources();
+      res.json({
+        success: true,
+        sources,
+        count: sources.length
+      });
+    } catch (error) {
+      console.error("Error fetching discovery sources:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.get("/api/admin/discovery/terms", authMiddleware, async (req, res) => {
+    try {
+      const terms = await storage.getSearchTerms();
+      res.json({
+        success: true,
+        terms,
+        count: terms.length
+      });
+    } catch (error) {
+      console.error("Error fetching search terms:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  // Enhanced deal discovery endpoints (existing pattern-based)
   app.get('/api/admin/discover-deals', isAuthenticated, async (req, res) => {
     try {
-      console.log('🔍 Starting deal discovery...');
-      const discoveredDeals = await dealDiscoveryService.discoverAllDeals();
-      await dealDiscoveryService.saveDiscoveredDeals(discoveredDeals);
+      console.log('🔍 Starting enhanced deal discovery...');
+      const discoveredDeals = await enhancedDealDiscoveryService.discoverAllDeals();
+      await enhancedDealDiscoveryService.saveDiscoveredDeals(discoveredDeals);
       
       res.json({ 
         success: true, 
@@ -531,17 +1057,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         count: discoveredDeals.length 
       });
     } catch (error) {
-      console.error('Deal discovery failed:', error);
+      console.error('Enhanced deal discovery failed:', error);
       res.status(500).json({ 
         success: false, 
-        error: 'Failed to discover deals' 
+        error: 'Failed to discover deals',
+        details: error.message
       });
     }
   });
 
   app.get('/api/admin/deals', isAuthenticated, async (req, res) => {
     try {
-      const deals = await dealDiscoveryService.getDiscoveredDeals();
+      const deals = await enhancedDealDiscoveryService.getDiscoveredDeals();
       res.json({ 
         success: true, 
         deals,
@@ -551,7 +1078,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Failed to load discovered deals:', error);
       res.status(500).json({ 
         success: false, 
-        error: 'Failed to load discovered deals' 
+        error: 'Failed to load discovered deals',
+        details: error.message
       });
     }
   });
@@ -561,13 +1089,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { dealId } = req.params;
       const { imageAssetPath } = req.body;
       
-      await dealDiscoveryService.approveDeal(dealId, imageAssetPath);
+      await enhancedDealDiscoveryService.approveDeal(dealId, imageAssetPath);
       res.json({ success: true, message: 'Deal approved successfully' });
     } catch (error) {
       console.error('Failed to approve deal:', error);
       res.status(500).json({ 
         success: false, 
-        error: 'Failed to approve deal' 
+        error: 'Failed to approve deal',
+        details: error.message
       });
     }
   });
@@ -575,14 +1104,147 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/deals/:dealId/reject', isAuthenticated, async (req, res) => {
     try {
       const { dealId } = req.params;
-      await dealDiscoveryService.rejectDeal(dealId);
+      await enhancedDealDiscoveryService.rejectDeal(dealId);
       res.json({ success: true, message: 'Deal rejected successfully' });
     } catch (error) {
       console.error('Failed to reject deal:', error);
       res.status(500).json({ 
         success: false, 
-        error: 'Failed to reject deal' 
+        error: 'Failed to reject deal',
+        details: error.message
       });
+    }
+  });
+
+  // Deal migration endpoints
+  app.get('/api/admin/migration/report', isAuthenticated, async (req, res) => {
+    try {
+      const report = await dealMigrationService.getMigrationReport();
+      res.json(report);
+    } catch (error) {
+      console.error('Error generating migration report:', error);
+      res.status(500).json({ error: 'Failed to generate migration report' });
+    }
+  });
+
+  app.post('/api/admin/migration/mark-test-deals', isAuthenticated, async (req, res) => {
+    try {
+      const count = await dealMigrationService.markExistingDealsAsTest();
+      res.json({ success: true, markedCount: count });
+    } catch (error) {
+      console.error('Error marking test deals:', error);
+      res.status(500).json({ error: 'Failed to mark test deals' });
+    }
+  });
+
+  app.get('/api/admin/migration/test-deals', isAuthenticated, async (req, res) => {
+    try {
+      const deals = await dealMigrationService.getTestDeals();
+      res.json(deals);
+    } catch (error) {
+      console.error('Error fetching test deals:', error);
+      res.status(500).json({ error: 'Failed to fetch test deals' });
+    }
+  });
+
+  app.get('/api/admin/migration/discovered-deals', isAuthenticated, async (req, res) => {
+    try {
+      const deals = await dealMigrationService.getDiscoveredDeals();
+      res.json(deals);
+    } catch (error) {
+      console.error('Error fetching discovered deals:', error);
+      res.status(500).json({ error: 'Failed to fetch discovered deals' });
+    }
+  });
+
+  app.post('/api/admin/migration/backup-test-deals', isAuthenticated, async (req, res) => {
+    try {
+      const backup = await dealMigrationService.backupTestDeals();
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', 'attachment; filename="test-deals-backup.json"');
+      res.send(backup);
+    } catch (error) {
+      console.error('Error creating backup:', error);
+      res.status(500).json({ error: 'Failed to create backup' });
+    }
+  });
+
+  app.delete('/api/admin/migration/test-deals', isAuthenticated, async (req, res) => {
+    try {
+      const { dealIds } = req.body;
+      if (!Array.isArray(dealIds)) {
+        return res.status(400).json({ error: 'dealIds must be an array' });
+      }
+      
+      const deletedCount = await dealMigrationService.removeTestDeals(dealIds);
+      res.json({ success: true, deletedCount });
+    } catch (error) {
+      console.error('Error removing test deals:', error);
+      res.status(500).json({ error: error.message || 'Failed to remove test deals' });
+    }
+  });
+
+  // Real-time deal monitoring endpoints
+  app.get('/api/admin/deal-monitor/status', isAuthenticated, async (req, res) => {
+    try {
+      const status = realTimeDealMonitor.getStatus();
+      const performance = realTimeDealMonitor.getPerformanceMetrics();
+      const patternStats = dealPatternMatcher.getPatternStats();
+      
+      res.json({
+        success: true,
+        monitor: status,
+        performance,
+        patterns: patternStats
+      });
+    } catch (error) {
+      console.error('Error getting monitor status:', error);
+      res.status(500).json({ error: 'Failed to get monitor status' });
+    }
+  });
+
+  app.post('/api/admin/deal-monitor/start', isAuthenticated, async (req, res) => {
+    try {
+      realTimeDealMonitor.start();
+      res.json({ success: true, message: 'Deal monitor started' });
+    } catch (error) {
+      console.error('Error starting monitor:', error);
+      res.status(500).json({ error: 'Failed to start monitor' });
+    }
+  });
+
+  app.post('/api/admin/deal-monitor/stop', isAuthenticated, async (req, res) => {
+    try {
+      realTimeDealMonitor.stop();
+      res.json({ success: true, message: 'Deal monitor stopped' });
+    } catch (error) {
+      console.error('Error stopping monitor:', error);
+      res.status(500).json({ error: 'Failed to stop monitor' });
+    }
+  });
+
+  app.post('/api/admin/deal-monitor/trigger', isAuthenticated, async (req, res) => {
+    try {
+      const result = await realTimeDealMonitor.triggerDiscovery();
+      res.json({ success: true, result });
+    } catch (error) {
+      console.error('Error triggering discovery:', error);
+      res.status(500).json({ error: 'Failed to trigger discovery' });
+    }
+  });
+
+  app.post('/api/admin/deal-monitor/interval', isAuthenticated, async (req, res) => {
+    try {
+      const { minutes } = req.body;
+      if (!minutes || minutes < 5) {
+        return res.status(400).json({ error: 'Interval must be at least 5 minutes' });
+      }
+      
+      realTimeDealMonitor.setInterval(minutes);
+      res.json({ success: true, message: `Interval set to ${minutes} minutes` });
+    } catch (error) {
+      console.error('Error setting interval:', error);
+      res.status(500).json({ error: 'Failed to set interval' });
     }
   });
 
@@ -624,6 +1286,183 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching MLB teams:", error);
       res.status(500).json({ error: "Failed to fetch MLB teams" });
+    }
+  });
+
+  // ====== DEAL PAGE ENDPOINTS ======
+  
+  // Deal Page Routes
+  app.post("/api/admin/deal-pages", isAuthenticated, async (req, res) => {
+    try {
+      const dealPage = await storage.createDealPage(req.body);
+      res.json(dealPage);
+    } catch (error) {
+      console.error("Error creating deal page:", error);
+      res.status(500).json({ error: "Failed to create deal page" });
+    }
+  });
+
+  app.get("/api/deal-pages", async (req, res) => {
+    try {
+      const dealPages = await storage.getActiveDealPages();
+      res.json(dealPages);
+    } catch (error) {
+      console.error("Error fetching deal pages:", error);
+      res.status(500).json({ error: "Failed to fetch deal pages" });
+    }
+  });
+
+  app.get("/api/deal-pages/:slug", async (req, res) => {
+    try {
+      const dealPage = await storage.getDealPage(req.params.slug);
+      if (!dealPage) {
+        return res.status(404).json({ error: "Deal page not found" });
+      }
+      res.json(dealPage);
+    } catch (error) {
+      console.error("Error fetching deal page:", error);
+      res.status(500).json({ error: "Failed to fetch deal page" });
+    }
+  });
+
+  app.get("/api/admin/deal-pages", isAuthenticated, async (req, res) => {
+    try {
+      const dealPages = await storage.getAllDealPages();
+      res.json(dealPages);
+    } catch (error) {
+      console.error("Error fetching all deal pages:", error);
+      res.status(500).json({ error: "Failed to fetch deal pages" });
+    }
+  });
+
+  app.put("/api/admin/deal-pages/:id", isAuthenticated, async (req, res) => {
+    try {
+      const dealPage = await storage.updateDealPage(parseInt(req.params.id), req.body);
+      res.json(dealPage);
+    } catch (error) {
+      console.error("Error updating deal page:", error);
+      res.status(500).json({ error: "Failed to update deal page" });
+    }
+  });
+
+  app.delete("/api/admin/deal-pages/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteDealPage(parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting deal page:", error);
+      res.status(500).json({ error: "Failed to delete deal page" });
+    }
+  });
+
+  // Enhanced discovery approval with deal page creation
+  app.post("/api/admin/discovery/approve-and-create-deal", isAuthenticated, async (req, res) => {
+    try {
+      const { siteId, dealPageData } = req.body;
+      
+      // Update the discovered site status
+      await storage.updateDiscoveredSite(siteId, { status: 'approved' });
+      
+      // Create the deal page
+      const dealPage = await storage.createDealPage({
+        ...dealPageData,
+        discoveredSiteId: siteId,
+      });
+      
+      res.json({ 
+        success: true, 
+        dealPage,
+        message: `Deal page created: /deal/${dealPage.slug}` 
+      });
+    } catch (error) {
+      console.error("Error approving and creating deal:", error);
+      res.status(500).json({ error: "Failed to approve and create deal page" });
+    }
+  });
+
+  // Get single discovered site
+  app.get("/api/admin/discovery/sites/:siteId", isAuthenticated, async (req, res) => {
+    try {
+      const siteId = parseInt(req.params.siteId);
+      const site = await storage.getDiscoveredSite(siteId);
+      
+      if (!site) {
+        return res.status(404).json({ error: "Site not found" });
+      }
+      
+      res.json({ success: true, site });
+    } catch (error) {
+      console.error("Error fetching discovered site:", error);
+      res.status(500).json({ error: "Failed to fetch site" });
+    }
+  });
+
+  // Deal extraction endpoints
+  app.post("/api/admin/discovery/extract-deal/:siteId", isAuthenticated, async (req, res) => {
+    try {
+      const siteId = parseInt(req.params.siteId);
+      
+      // Try simple extraction first (more reliable)
+      const { simpleExtractionEngine } = await import('./services/simpleExtraction');
+      const extractedDeal = await simpleExtractionEngine.enhanceDiscoveredSite(siteId);
+      
+      if (!extractedDeal) {
+        return res.status(400).json({ error: "Could not extract deal from this site" });
+      }
+      
+      res.json({ 
+        success: true, 
+        extractedDeal,
+        message: "Deal extracted successfully" 
+      });
+    } catch (error) {
+      console.error("Error extracting deal:", error);
+      res.status(500).json({ error: "Failed to extract deal" });
+    }
+  });
+
+  app.post("/api/admin/discovery/batch-extract", isAuthenticated, async (req, res) => {
+    try {
+      const { limit = 5 } = req.body;
+      const { dealExtractionEngine } = await import('./services/dealExtractionEngine');
+      
+      const enhancedCount = await dealExtractionEngine.batchEnhanceDiscoveredSites(limit);
+      
+      res.json({ 
+        success: true, 
+        enhancedCount,
+        message: `Enhanced ${enhancedCount} discovered deals` 
+      });
+    } catch (error) {
+      console.error("Error in batch extraction:", error);
+      res.status(500).json({ error: "Failed to batch extract deals" });
+    }
+  });
+
+  // Test endpoint for direct URL extraction
+  app.post("/api/admin/discovery/test-extract", isAuthenticated, async (req, res) => {
+    try {
+      const { url } = req.body;
+      if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+      }
+      
+      // Try simple extraction first (more reliable)
+      const { simpleExtractionEngine } = await import('./services/simpleExtraction');
+      const extractedDeal = await simpleExtractionEngine.extractDealFromUrl(url);
+      
+      if (!extractedDeal) {
+        return res.status(400).json({ error: "Could not extract deal from this URL" });
+      }
+      
+      res.json({ 
+        success: true, 
+        extractedDeal,
+        message: "Deal extracted successfully" 
+      });
+    } catch (error) {
+      console.error("Error testing extraction:", error);
+      res.status(500).json({ error: "Failed to extract deal" });
     }
   });
 

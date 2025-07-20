@@ -17,21 +17,16 @@ export default function DemoModeToggle({ onToggle }: DemoModeToggleProps) {
   };
 
   return (
-    <div className="fixed top-4 right-4 z-50">
+    <div className="fixed top-20 left-4 z-40">
       <Button
         onClick={handleToggle}
         variant={isDemo ? "default" : "outline"}
         size="sm"
-        className="gap-2"
+        className="gap-2 shadow-lg"
       >
         {isDemo ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-        {isDemo ? "Demo Mode ON" : "Enable Demo Mode"}
+        {isDemo ? "Demo Mode ON" : "Demo Mode"}
       </Button>
-      {isDemo && (
-        <Badge variant="secondary" className="ml-2">
-          Viewing as authenticated user
-        </Badge>
-      )}
     </div>
   );
 }

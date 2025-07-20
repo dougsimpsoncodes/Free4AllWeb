@@ -40,6 +40,15 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize game scheduling service
+  try {
+    const { gameSchedulingService } = await import("./services/gameSchedulingService");
+    console.log("Initializing game scheduling service...");
+    await gameSchedulingService.initializeScheduledGames();
+  } catch (error) {
+    console.error("Failed to initialize game scheduling service:", error);
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

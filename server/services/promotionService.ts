@@ -1,12 +1,15 @@
 import { storage } from '../storage';
 import { emailService } from './emailService';
 import { sportsApiService } from './sportsApiService';
+// Import moved to avoid circular dependency
 import type { Game, Promotion } from '@shared/schema';
 
 interface PromotionTrigger {
-  type: 'win_home' | 'runs_scored' | 'strikeouts' | 'stolen_base_home' | 'stolen_base_ws';
+  type: 'win_home' | 'runs_scored' | 'strikeouts' | 'pitching_strikeouts' | 'stolen_base_home' | 'stolen_base_ws' | 'any_win' | 'home_win_and_runs' | 'loss' | 'home_loss';
   threshold?: number;
+  runsThreshold?: number;
   seasonal?: boolean;
+  requiredLocation?: 'home' | 'away' | 'any';
 }
 
 class PromotionService {
@@ -40,9 +43,17 @@ class PromotionService {
         }
       }
 
-      if (triggeredDeals.length > 0) {
+      // Also check discovered deal pages for this game (import here to avoid circular dependency)
+      const { dealVerificationService } = await import('./dealVerificationService');
+      const discoveredDealResults = await dealVerificationService.verifyDealsForGame(gameId);
+      
+      const allTriggeredDeals = [...triggeredDeals, ...discoveredDealResults.triggeredDeals];
+
+      if (allTriggeredDeals.length > 0) {
+        console.log(`Total triggered deals: ${allTriggeredDeals.length} (${triggeredDeals.length} promotions + ${discoveredDealResults.triggeredDeals.length} discovered deals)`);
+        
         // Send alerts to users who have preferences for this team
-        await this.sendAlertsForTriggeredDeals(game.teamId, triggeredDeals);
+        await this.sendAlertsForTriggeredDeals(game.teamId, allTriggeredDeals);
       }
     } catch (error) {
       console.error('Error processing game for promotions:', error);
@@ -52,57 +63,111 @@ class PromotionService {
   private async isPromotionTriggered(promotion: Promotion, game: Game): Promise<boolean> {
     const trigger = this.parseTriggerCondition(promotion.triggerCondition);
     const gameStats = game.gameStats as any || {};
+    
+    // Basic game result checks
+    const didWin = game.teamScore !== null && game.opponentScore !== null && game.teamScore > game.opponentScore;
+    const didLose = game.teamScore !== null && game.opponentScore !== null && game.teamScore < game.opponentScore;
+    const runsScored = game.teamScore || 0;
 
     switch (trigger.type) {
       case 'win_home':
-        return game.isHome && 
-               game.teamScore !== null && 
-               game.opponentScore !== null && 
-               game.teamScore > game.opponentScore;
+        return game.isHome && didWin;
+
+      case 'any_win':
+        return didWin;
+
+      case 'loss':
+        return didLose;
+
+      case 'home_loss':
+        return game.isHome && didLose;
 
       case 'runs_scored':
-        return game.teamScore !== null && 
-               game.teamScore >= (trigger.threshold || 6);
+        return runsScored >= (trigger.threshold || 6);
+
+      case 'home_win_and_runs':
+        return game.isHome && didWin && runsScored >= (trigger.runsThreshold || 6);
 
       case 'strikeouts':
+        // Batting strikeouts (team got struck out)
         return gameStats.strikeOuts >= (trigger.threshold || 7);
 
+      case 'pitching_strikeouts':
+        // Pitching strikeouts (team's pitchers struck out opponents)
+        return gameStats.pitchingStrikeOuts >= (trigger.threshold || 7);
+
       case 'stolen_base_home':
-        return game.isHome && gameStats.stolenBases > 0;
+        return game.isHome && (gameStats.stolenBases || 0) > 0;
 
       case 'stolen_base_ws':
         // Only during World Series (seasonal promotion)
-        return trigger.seasonal && gameStats.stolenBases > 0;
+        return trigger.seasonal && (gameStats.stolenBases || 0) > 0;
 
       default:
+        console.warn(`Unknown trigger type: ${trigger.type}`);
         return false;
     }
   }
 
   private parseTriggerCondition(condition: string): PromotionTrigger {
     const lowerCondition = condition.toLowerCase();
+    console.log(`Parsing trigger condition: "${condition}"`);
 
+    // Complex conditions first (order matters)
+    if (lowerCondition.includes('home') && lowerCondition.includes('win') && 
+        (lowerCondition.includes('6') || lowerCondition.includes('run'))) {
+      const runsMatch = condition.match(/(\d+)\s*\+?\s*runs?/i);
+      const runsThreshold = runsMatch ? parseInt(runsMatch[1]) : 6;
+      return { type: 'home_win_and_runs', runsThreshold };
+    }
+
+    // Win conditions
     if (lowerCondition.includes('win') && lowerCondition.includes('home')) {
       return { type: 'win_home' };
     }
 
-    if (lowerCondition.includes('score') && lowerCondition.includes('6')) {
-      return { type: 'runs_scored', threshold: 6 };
+    if (lowerCondition.includes('win') && !lowerCondition.includes('home')) {
+      return { type: 'any_win' };
     }
 
-    if (lowerCondition.includes('strikeout') && lowerCondition.includes('7')) {
-      return { type: 'strikeouts', threshold: 7 };
+    // Loss conditions  
+    if (lowerCondition.includes('loss') || lowerCondition.includes('lose')) {
+      if (lowerCondition.includes('home')) {
+        return { type: 'home_loss' };
+      }
+      return { type: 'loss' };
     }
 
-    if (lowerCondition.includes('steal') && lowerCondition.includes('home')) {
-      return { type: 'stolen_base_home' };
+    // Runs scored
+    if (lowerCondition.includes('run') || lowerCondition.includes('score')) {
+      const runsMatch = condition.match(/(\d+)\s*\+?\s*runs?/i);
+      const threshold = runsMatch ? parseInt(runsMatch[1]) : 6;
+      return { type: 'runs_scored', threshold };
     }
 
-    if (lowerCondition.includes('steal') && lowerCondition.includes('world series')) {
-      return { type: 'stolen_base_ws', seasonal: true };
+    // Strikeout conditions
+    if (lowerCondition.includes('strikeout') || lowerCondition.includes('strike out')) {
+      const strikeoutMatch = condition.match(/(\d+)\s*\+?\s*strikeouts?/i);
+      const threshold = strikeoutMatch ? parseInt(strikeoutMatch[1]) : 7;
+      
+      // Determine if this is pitching or batting strikeouts based on context
+      if (lowerCondition.includes('pitch') || lowerCondition.includes('record')) {
+        return { type: 'pitching_strikeouts', threshold };
+      }
+      return { type: 'strikeouts', threshold };
     }
 
-    // Default fallback
+    // Stolen base conditions
+    if (lowerCondition.includes('steal') || lowerCondition.includes('stolen')) {
+      if (lowerCondition.includes('world series')) {
+        return { type: 'stolen_base_ws', seasonal: true };
+      }
+      if (lowerCondition.includes('home')) {
+        return { type: 'stolen_base_home' };
+      }
+    }
+
+    console.warn(`Could not parse trigger condition: "${condition}", using default home win`);
     return { type: 'win_home' };
   }
 

@@ -8,6 +8,10 @@ import {
   alertPreferences,
   alertHistory,
   leagues,
+  discoverySources,
+  searchTerms,
+  discoveredSites,
+  dealPages,
   type User,
   type UpsertUser,
   type Team,
@@ -26,9 +30,17 @@ import {
   type InsertAlertHistory,
   type League,
   type InsertLeague,
+  type DiscoverySource,
+  type InsertDiscoverySource,
+  type SearchTerm,
+  type InsertSearchTerm,
+  type DiscoveredSite,
+  type InsertDiscoveredSite,
+  type DealPage,
+  type InsertDealPage,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -83,6 +95,33 @@ export interface IStorage {
   // Alert history operations
   createAlertHistory(history: InsertAlertHistory): Promise<AlertHistory>;
   getUserAlertHistory(userId: string): Promise<AlertHistory[]>;
+
+  // Discovery Source operations
+  createDiscoverySource(source: InsertDiscoverySource): Promise<DiscoverySource>;
+  getDiscoverySources(): Promise<DiscoverySource[]>;
+  getActiveDiscoverySources(): Promise<DiscoverySource[]>;
+  updateDiscoverySource(id: number, updates: Partial<InsertDiscoverySource>): Promise<DiscoverySource>;
+
+  // Search Term operations
+  createSearchTerm(term: InsertSearchTerm): Promise<SearchTerm>;
+  getSearchTerms(): Promise<SearchTerm[]>;
+  getActiveSearchTerms(): Promise<SearchTerm[]>;
+  updateSearchTermUsage(id: number): Promise<SearchTerm>;
+
+  // Discovered Site operations
+  createDiscoveredSite(site: InsertDiscoveredSite): Promise<DiscoveredSite>;
+  getDiscoveredSites(): Promise<DiscoveredSite[]>;
+  getPendingDiscoveredSites(): Promise<DiscoveredSite[]>;
+  updateDiscoveredSite(id: number, updates: Partial<InsertDiscoveredSite>): Promise<DiscoveredSite>;
+
+  // Deal Page operations
+  createDealPage(dealPage: InsertDealPage): Promise<DealPage>;
+  getDealPage(slug: string): Promise<DealPage | undefined>;
+  getDealPageById(id: number): Promise<DealPage | undefined>;
+  getAllDealPages(): Promise<DealPage[]>;
+  getActiveDealPages(): Promise<DealPage[]>;
+  updateDealPage(id: number, updates: Partial<InsertDealPage>): Promise<DealPage>;
+  deleteDealPage(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -309,12 +348,240 @@ export class DatabaseStorage implements IStorage {
     return newHistory;
   }
 
+  async getAlertHistory(userId: string): Promise<AlertHistory[]> {
+    return await db
+      .select()
+      .from(alertHistory)
+      .where(eq(alertHistory.userId, userId))
+      .orderBy(desc(alertHistory.sentAt))
+      .limit(50);
+  }
+
+  async getUnreadNotificationsCount(userId: string): Promise<number> {
+    // For now, return 0 - can be enhanced with read status tracking
+    return 0;
+  }
+
   async getUserAlertHistory(userId: string): Promise<AlertHistory[]> {
     return await db
       .select()
       .from(alertHistory)
       .where(eq(alertHistory.userId, userId))
       .orderBy(desc(alertHistory.sentAt));
+  }
+
+  // Discovery Source operations
+  async createDiscoverySource(source: InsertDiscoverySource): Promise<DiscoverySource> {
+    const [newSource] = await db.insert(discoverySources).values(source).returning();
+    return newSource;
+  }
+
+  async getDiscoverySources(): Promise<DiscoverySource[]> {
+    return await db.select().from(discoverySources).orderBy(desc(discoverySources.priority));
+  }
+
+  async getActiveDiscoverySources(): Promise<DiscoverySource[]> {
+    return await db
+      .select()
+      .from(discoverySources)
+      .where(eq(discoverySources.isActive, true))
+      .orderBy(desc(discoverySources.priority));
+  }
+
+  async updateDiscoverySource(id: number, updates: Partial<InsertDiscoverySource>): Promise<DiscoverySource> {
+    const [updated] = await db
+      .update(discoverySources)
+      .set(updates)
+      .where(eq(discoverySources.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Search Term operations
+  async createSearchTerm(term: InsertSearchTerm): Promise<SearchTerm> {
+    const [newTerm] = await db.insert(searchTerms).values(term).returning();
+    return newTerm;
+  }
+
+  async getSearchTerms(): Promise<SearchTerm[]> {
+    return await db.select().from(searchTerms).orderBy(desc(searchTerms.successRate));
+  }
+
+  async getActiveSearchTerms(): Promise<SearchTerm[]> {
+    return await db
+      .select()
+      .from(searchTerms)
+      .where(eq(searchTerms.isActive, true))
+      .orderBy(desc(searchTerms.successRate));
+  }
+
+  async updateSearchTermUsage(id: number): Promise<SearchTerm> {
+    // First get the current usage count
+    const [currentTerm] = await db
+      .select()
+      .from(searchTerms)
+      .where(eq(searchTerms.id, id));
+    
+    const [updated] = await db
+      .update(searchTerms)
+      .set({
+        usageCount: (currentTerm?.usageCount || 0) + 1,
+        lastUsed: new Date()
+      })
+      .where(eq(searchTerms.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Discovered Site operations
+  async createDiscoveredSite(site: InsertDiscoveredSite): Promise<DiscoveredSite> {
+    const [newSite] = await db.insert(discoveredSites).values(site).returning();
+    return newSite;
+  }
+
+  async getDiscoveredSites(): Promise<DiscoveredSite[]> {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
+    return await db
+      .select()
+      .from(discoveredSites)
+      .where(gte(discoveredSites.foundAt, sixMonthsAgo))
+      .orderBy(desc(discoveredSites.foundAt));
+  }
+
+  async getPendingDiscoveredSites(): Promise<DiscoveredSite[]> {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
+    return await db
+      .select()
+      .from(discoveredSites)
+      .where(
+        and(
+          eq(discoveredSites.status, 'pending'),
+          gte(discoveredSites.foundAt, sixMonthsAgo)
+        )
+      )
+      .orderBy(desc(discoveredSites.confidence));
+  }
+
+  async updateDiscoveredSite(id: number, updates: Partial<InsertDiscoveredSite>): Promise<DiscoveredSite> {
+    const [updated] = await db
+      .update(discoveredSites)
+      .set(updates)
+      .where(eq(discoveredSites.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Deal Page operations
+  async createDealPage(dealPage: InsertDealPage): Promise<DealPage> {
+    const [newDealPage] = await db.insert(dealPages).values(dealPage).returning();
+    return newDealPage;
+  }
+
+  async getDealPage(slug: string): Promise<DealPage | undefined> {
+    const [dealPage] = await db.select().from(dealPages).where(eq(dealPages.slug, slug));
+    return dealPage;
+  }
+
+  async getDealPageById(id: number): Promise<DealPage | undefined> {
+    const [dealPage] = await db.select().from(dealPages).where(eq(dealPages.id, id));
+    return dealPage;
+  }
+
+  async getAllDealPages(): Promise<DealPage[]> {
+    return await db.select().from(dealPages).orderBy(desc(dealPages.createdAt));
+  }
+
+  async getActiveDealPages(): Promise<DealPage[]> {
+    return await db
+      .select()
+      .from(dealPages)
+      .where(eq(dealPages.isActive, true))
+      .orderBy(desc(dealPages.createdAt));
+  }
+
+  async updateDealPage(id: number, updates: Partial<InsertDealPage>): Promise<DealPage> {
+    const [updated] = await db
+      .update(dealPages)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(dealPages.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDealPage(id: number): Promise<void> {
+    await db.delete(dealPages).where(eq(dealPages.id, id));
+  }
+
+  async getDiscoveredSite(id: number): Promise<DiscoveredSite | undefined> {
+    const [site] = await db
+      .select()
+      .from(discoveredSites)
+      .where(eq(discoveredSites.id, id));
+    return site;
+  }
+
+  async getPendingDiscoveredSites(limit: number = 10): Promise<DiscoveredSite[]> {
+    return await db
+      .select()
+      .from(discoveredSites)
+      .where(eq(discoveredSites.status, 'pending'))
+      .limit(limit);
+  }
+
+  async getDiscoveredSitesByUrl(url: string): Promise<DiscoveredSite[]> {
+    return await db
+      .select()
+      .from(discoveredSites)
+      .where(eq(discoveredSites.url, url));
+  }
+
+  async getUsersByTeamSubscription(teamId: number): Promise<User[]> {
+    // For now, return all users - can be enhanced with team subscription table
+    return await db.select().from(users);
+  }
+
+  async getPromotionsByTeam(teamId: number): Promise<any[]> {
+    return await db.select().from(promotions).where(eq(promotions.teamId, teamId));
+  }
+
+  async getUpcomingGames(days: number): Promise<any[]> {
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + days);
+    
+    return await db.select()
+      .from(games)
+      .where(and(
+        gte(games.gameDate, new Date()),
+        lte(games.gameDate, futureDate)
+      ))
+      .orderBy(asc(games.gameDate));
+  }
+
+  async storeAlertHistory(alertData: any): Promise<void> {
+    await db.insert(alertHistory).values({
+      userId: alertData.userId,
+      gameId: alertData.gameId,
+      alertType: alertData.alertType as 'email' | 'sms',
+      status: alertData.status as 'sent' | 'failed',
+      sentAt: alertData.sentAt || new Date(),
+    });
+  }
+
+  async storeTriggeredDeal(dealData: any): Promise<void> {
+    await db.insert(triggeredDeals).values({
+      promotionId: dealData.promotionId,
+      gameId: dealData.gameId,
+      teamId: dealData.teamId,
+      triggerCondition: dealData.triggerCondition,
+      actualResult: dealData.actualResult,
+      isActive: dealData.isActive,
+      triggeredAt: dealData.triggeredAt,
+      expiresAt: dealData.expiresAt,
+    });
   }
 }
 

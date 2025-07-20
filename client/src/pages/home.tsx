@@ -2,14 +2,18 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import EnhancedActiveDeals from "@/components/EnhancedActiveDeals";
+import AdminToggle from "@/components/AdminToggle";
 
 export default function Home() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const { toast } = useToast();
 
-  // Redirect to login if not authenticated
+  // Development mode - skip authentication check
+  const isDevelopment = import.meta.env.DEV || window.location.hostname.includes('replit');
+  
+  // Redirect to login if not authenticated (only in production)
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!isDevelopment && !isLoading && !isAuthenticated) {
       toast({
         title: "Unauthorized",
         description: "You are logged out. Logging in again...",
@@ -20,9 +24,9 @@ export default function Home() {
       }, 500);
       return;
     }
-  }, [isAuthenticated, isLoading, toast]);
+  }, [isAuthenticated, isLoading, toast, isDevelopment]);
 
-  if (isLoading) {
+  if (!isDevelopment && isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -35,6 +39,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <AdminToggle />
+      
       {/* Header with user info and logout */}
       <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -45,7 +51,7 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground">
-                Welcome, {user?.firstName || 'User'}!
+                Welcome, {user?.firstName || 'Dev User'}!
               </span>
               <a
                 href="/admin"
