@@ -59,7 +59,7 @@ export default function AdminPage() {
     refetchInterval: 5000,
     enabled: isDevelopment || isAuthenticated,
     retry: false,
-  });
+  }) as { data: { isRunning?: boolean; isProcessing?: boolean } | undefined, isLoading: boolean };
 
   const approveDealMutation = useMutation({
     mutationFn: async ({ dealId, imageAssetPath }: { dealId: string; imageAssetPath?: string }) => {

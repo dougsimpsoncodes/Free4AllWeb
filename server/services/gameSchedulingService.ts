@@ -73,16 +73,16 @@ class GameSchedulingService {
         venue: gameSchedule.venue,
         isHome: gameSchedule.isHome,
         potentialDeals: promotions.map(p => ({
-          restaurant: p.restaurant,
-          offer: p.offer,
+          restaurant: (p as any).restaurant,
+          offer: p.description,
           triggerCondition: p.triggerCondition,
-          value: p.value
+          value: p.offerValue
         }))
       };
       
       // Send pre-game alerts to subscribed users
       for (const user of users) {
-        await emailService.sendPreGameAlert(user.email, preGameData);
+        await emailService.sendPreGameAlert(user.email || '', preGameData);
         
         // Store alert history
         await storage.storeAlertHistory({
@@ -217,7 +217,7 @@ class GameSchedulingService {
       
       // Send post-game victory alerts
       for (const user of users) {
-        await emailService.sendPostGameAlert(user.email, postGameData);
+        await emailService.sendPostGameAlert(user.email || '', postGameData);
         
         // Store alert history
         await storage.storeAlertHistory({

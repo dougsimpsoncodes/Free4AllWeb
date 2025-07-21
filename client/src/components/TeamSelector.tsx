@@ -2,14 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Clock } from "lucide-react";
+import type { Team } from "@/types/api";
 
 export default function TeamSelector() {
-  const { data: teams = [] } = useQuery({
+  const { data: teams = [] } = useQuery<Team[]>({
     queryKey: ["/api/teams"],
     retry: false,
   });
 
-  const activeTeam = teams.find((team: any) => team.id === 1); // Dodgers
+  const activeTeam = teams.find((team) => team.id === 1); // Dodgers
   const comingTeams = [
     { name: "LA Angels", abbreviation: "LAA", sport: "MLB", color: "#d32f2f" },
     { name: "LA Lakers", abbreviation: "LAL", sport: "NBA", color: "#552583" },

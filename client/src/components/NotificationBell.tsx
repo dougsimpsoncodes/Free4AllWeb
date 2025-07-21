@@ -6,16 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Link } from "wouter";
+import type { AlertHistory } from "@/types/api";
 
 export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
 
-  const { data: unreadCount = 0 } = useQuery({
+  const { data: unreadCount = 0 } = useQuery<number>({
     queryKey: ["/api/notifications/unread"],
     retry: false,
   });
 
-  const { data: recentAlerts = [] } = useQuery({
+  const { data: recentAlerts = [] } = useQuery<AlertHistory[]>({
     queryKey: ["/api/alert-history"],
     retry: false,
   });
@@ -49,7 +50,7 @@ export default function NotificationBell() {
           <CardContent>
             {recentNotifications.length > 0 ? (
               <div className="space-y-3">
-                {recentNotifications.map((notification: any) => (
+                {recentNotifications.map((notification) => (
                   <div key={notification.id} className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded">
                     <div className={`p-1 rounded-full ${
                       notification.status === 'sent' ? 'bg-green-100' : 'bg-gray-100'

@@ -66,7 +66,7 @@ export class TextBeltProvider implements SMSProvider {
       console.error('TextBelt SMS error:', error);
       return {
         success: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         provider: 'TextBelt'
       };
     }
@@ -156,7 +156,7 @@ export class TwilioProvider implements SMSProvider {
       console.error('Twilio SMS error:', error);
       return {
         success: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         provider: 'Twilio'
       };
     }

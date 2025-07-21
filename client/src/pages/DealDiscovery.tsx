@@ -88,12 +88,12 @@ export default function DealDiscovery() {
   });
 
   // Query for discovery sources
-  const { data: sourcesData, isLoading: sourcesLoading } = useQuery({
+  const { data: sourcesData, isLoading: sourcesLoading } = useQuery<{sources: DiscoverySource[]}>({
     queryKey: ["/api/admin/discovery/sources"],
   });
 
   // Query for search terms
-  const { data: termsData, isLoading: termsLoading } = useQuery({
+  const { data: termsData, isLoading: termsLoading } = useQuery<{terms: SearchTerm[]}>({
     queryKey: ["/api/admin/discovery/terms"],
   });
 
@@ -304,7 +304,7 @@ export default function DealDiscovery() {
               <Target className="h-5 w-5 text-green-500" />
               <div>
                 <p className="text-sm font-medium">Active Sources</p>
-                <p className="text-2xl font-bold">{sources.filter(s => s.isActive).length}</p>
+                <p className="text-2xl font-bold">{sources.filter((s: DiscoverySource) => s.isActive).length}</p>
               </div>
             </div>
           </CardContent>
@@ -316,7 +316,7 @@ export default function DealDiscovery() {
               <BarChart3 className="h-5 w-5 text-purple-500" />
               <div>
                 <p className="text-sm font-medium">Search Terms</p>
-                <p className="text-2xl font-bold">{terms.filter(t => t.isActive).length}</p>
+                <p className="text-2xl font-bold">{terms.filter((t: SearchTerm) => t.isActive).length}</p>
               </div>
             </div>
           </CardContent>
@@ -353,7 +353,7 @@ export default function DealDiscovery() {
                       No sites discovered yet. Run discovery to start finding deals!
                     </div>
                   ) : (
-                    sortedSites.map((site: DiscoveredSite) => (
+                    sortedSites.map((site) => (
                       <Card key={site.id} className="border-l-4 border-l-blue-500">
                         <CardContent className="p-4">
                           <div className="space-y-3">
@@ -461,7 +461,7 @@ export default function DealDiscovery() {
                       No sites pending review.
                     </div>
                   ) : (
-                    sortedPendingSites.map((site: DiscoveredSite) => (
+                    sortedPendingSites.map((site) => (
                       <Card key={site.id} className="border-l-4 border-l-yellow-500">
                         <CardContent className="p-4">
                           <div className="space-y-3">

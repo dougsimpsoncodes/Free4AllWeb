@@ -5,18 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CheckCircle2, Circle, Trophy, Users, MapPin, Star } from 'lucide-react';
-
-interface Team {
-  id: number;
-  name: string;
-  abbreviation: string;
-  city: string;
-  sport: string;
-  conference: string;
-  division: string;
-  primaryColor: string;
-  isActive: boolean;
-}
+import type { Team, Promotion } from '@/types/api';
 
 interface MultiSportTeamSelectorProps {
   onTeamSelect?: (teamId: number | null) => void;
@@ -38,7 +27,7 @@ export default function MultiSportTeamSelector({
     queryKey: ['/api/teams'],
   });
 
-  const { data: promotions = [] } = useQuery({
+  const { data: promotions = [] } = useQuery<Promotion[]>({
     queryKey: ['/api/promotions/active'],
     enabled: showPromotionCount,
   });
@@ -60,7 +49,7 @@ export default function MultiSportTeamSelector({
 
   // Get promotion count for a team
   const getPromotionCount = (teamId: number) => {
-    return promotions.filter((promo: any) => promo.teamId === teamId).length;
+    return promotions.filter(promo => promo.teamId === teamId).length;
   };
 
   const handleTeamSelect = (teamId: number) => {

@@ -30,6 +30,7 @@ export default function ActiveDealsShowcase() {
     {
       id: 1,
       title: "mcnuggets",
+      description: "Free 6-piece McNuggets when Dodgers win",
       restaurant: "McDonald's",
       team: "Los Angeles Dodgers",
       teamColor: "#1e40af",
@@ -44,6 +45,7 @@ export default function ActiveDealsShowcase() {
     {
       id: 2,
       title: "panda plate",
+      description: "Free Orange Chicken Plate when Dodgers score 7+ runs",
       restaurant: "Panda Express",
       team: "Los Angeles Dodgers", 
       teamColor: "#1e40af",
@@ -58,6 +60,7 @@ export default function ActiveDealsShowcase() {
     {
       id: 3,
       title: "jumbo jack",
+      description: "Free Jumbo Jack when Dodgers win at home",
       restaurant: "Jack in the Box",
       team: "Los Angeles Dodgers",
       teamColor: "#1e40af",
@@ -72,6 +75,7 @@ export default function ActiveDealsShowcase() {
     {
       id: 4,
       title: "hot dog",
+      description: "Free hot dog when Dodgers get 5+ strikeouts",
       restaurant: "ampm",
       team: "Los Angeles Dodgers",
       teamColor: "#1e40af", 

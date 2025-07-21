@@ -33,7 +33,7 @@ export default function AdminDashboard() {
   const { data: todaysGames, isLoading: gamesLoading } = useQuery({
     queryKey: ['/api/mlb/games/today'],
     refetchInterval: 30000, // Refresh every 30 seconds
-  });
+  }) as { data: any[] | undefined, isLoading: boolean };
 
   // Fetch active promotions
   const { data: promotions, isLoading: promotionsLoading } = useQuery<PromotionData[]>({

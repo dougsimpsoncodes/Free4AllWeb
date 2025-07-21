@@ -26,22 +26,22 @@ export default function NotificationsPage() {
   const [smsEnabled, setSmsEnabled] = useState(false);
 
   // Fetch data
-  const { data: teams = [] } = useQuery({
+  const { data: teams = [] } = useQuery<any[]>({
     queryKey: ["/api/teams"],
     retry: false,
   });
 
-  const { data: restaurants = [] } = useQuery({
+  const { data: restaurants = [] } = useQuery<any[]>({
     queryKey: ["/api/restaurants"],
     retry: false,
   });
 
-  const { data: alertPreferences = [], isLoading: preferencesLoading } = useQuery({
+  const { data: alertPreferences = [], isLoading: preferencesLoading } = useQuery<any[]>({
     queryKey: ["/api/alert-preferences"],
     retry: false,
   });
 
-  const { data: alertHistory = [] } = useQuery({
+  const { data: alertHistory = [] } = useQuery<any[]>({
     queryKey: ["/api/alert-history"],
     retry: false,
   });
@@ -78,8 +78,8 @@ export default function NotificationsPage() {
     },
   });
 
-  const currentPreferences = alertPreferences.length > 0 ? alertPreferences[0] : null;
-  const recentAlerts = alertHistory.slice(0, 10);
+  const currentPreferences = (alertPreferences as any[]).length > 0 ? (alertPreferences as any[])[0] : null;
+  const recentAlerts = (alertHistory as any[]).slice(0, 10);
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -198,18 +198,18 @@ export default function NotificationsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {alertPreferences.length > 0 ? (
+              {(alertPreferences as any[]).length > 0 ? (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {alertPreferences.map((pref: any) => (
+                    {(alertPreferences as any[]).map((pref: any) => (
                       <div key={pref.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                         <div className="flex items-center gap-2">
                           <Badge variant="secondary">
-                            {teams.find((t: any) => t.id === pref.teamId)?.name || 'Unknown Team'}
+                            {(teams as any[]).find((t: any) => t.id === pref.teamId)?.name || 'Unknown Team'}
                           </Badge>
                           {pref.restaurantId && (
                             <Badge variant="outline">
-                              {restaurants.find((r: any) => r.id === pref.restaurantId)?.name || 'Unknown Restaurant'}
+                              {(restaurants as any[]).find((r: any) => r.id === pref.restaurantId)?.name || 'Unknown Restaurant'}
                             </Badge>
                           )}
                         </div>
@@ -223,7 +223,7 @@ export default function NotificationsPage() {
                   <div className="text-sm text-gray-600">
                     <p className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-green-600" />
-                      You're subscribed to {alertPreferences.length} alert{alertPreferences.length > 1 ? 's' : ''}
+                      You're subscribed to {(alertPreferences as any[]).length} alert{(alertPreferences as any[]).length > 1 ? 's' : ''}
                     </p>
                   </div>
                 </div>

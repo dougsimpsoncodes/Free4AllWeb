@@ -70,12 +70,12 @@ class GameScrapingService {
           result.dealsTriggered += triggeredCount;
 
         } catch (gameError) {
-          result.errors.push(`Game processing error: ${gameError.message}`);
+          result.errors.push(`Game processing error: ${(gameError as Error).message}`);
         }
       }
 
     } catch (error) {
-      result.errors.push(`Team scraping error: ${error.message}`);
+      result.errors.push(`Team scraping error: ${(error as Error).message}`);
       console.error(`Error scraping ${team.sport} data for ${team.name}:`, error);
     }
 
@@ -112,7 +112,14 @@ class GameScrapingService {
     const promotions = await storage.getPromotionsByTeam(teamId);
     const recentGames = await storage.getRecentGames(teamId, 5);
     
-    const results = {
+    const results: {
+      team: string;
+      sport: string;
+      promotions: number;
+      recentGames: number;
+      potentialTriggers: any[];
+      actualTriggers: any[];
+    } = {
       team: `${team.city} ${team.name}`,
       sport: team.sport,
       promotions: promotions.length,
@@ -252,7 +259,7 @@ class GameScrapingService {
     const recommendations = [];
     
     const sportsWithNoGames = results.filter(r => r.gamesFound === 0).map(r => r.sport);
-    const uniqueSportsWithNoGames = [...new Set(sportsWithNoGames)];
+    const uniqueSportsWithNoGames = Array.from(new Set(sportsWithNoGames));
     
     if (uniqueSportsWithNoGames.length > 0) {
       recommendations.push(`Consider updating API endpoints for: ${uniqueSportsWithNoGames.join(', ')}`);

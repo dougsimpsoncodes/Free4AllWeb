@@ -40,7 +40,7 @@ import {
   type InsertDealPage,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, gte, lte } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, count } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -82,6 +82,8 @@ export interface IStorage {
   // Triggered deal operations
   getTriggeredDeals(): Promise<TriggeredDeal[]>;
   getActiveTriggeredDeals(): Promise<TriggeredDeal[]>;
+  getActiveTriggeredDealsWithDetails(): Promise<any[]>; // New optimized function
+  getActiveTriggeredDealsWithDetailsPaginated(page: number, limit: number): Promise<{deals: any[], total: number}>; // Paginated version
   getTriggeredDealsByGame(gameId: number): Promise<TriggeredDeal[]>;
   createTriggeredDeal(deal: InsertTriggeredDeal): Promise<TriggeredDeal>;
 
@@ -111,7 +113,7 @@ export interface IStorage {
   // Discovered Site operations
   createDiscoveredSite(site: InsertDiscoveredSite): Promise<DiscoveredSite>;
   getDiscoveredSites(): Promise<DiscoveredSite[]>;
-  getPendingDiscoveredSites(): Promise<DiscoveredSite[]>;
+  getPendingDiscoveredSites(limit?: number): Promise<DiscoveredSite[]>;
   updateDiscoveredSite(id: number, updates: Partial<InsertDiscoveredSite>): Promise<DiscoveredSite>;
 
   // Deal Page operations
@@ -289,6 +291,165 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(triggeredDeals.triggeredAt));
   }
 
+  // PERFORMANCE: Optimized function that gets all related data in one query instead of N+1
+  async getActiveTriggeredDealsWithDetails(): Promise<any[]> {
+    return await db
+      .select({
+        // TriggeredDeal fields
+        id: triggeredDeals.id,
+        promotionId: triggeredDeals.promotionId,
+        dealPageId: triggeredDeals.dealPageId,
+        gameId: triggeredDeals.gameId,
+        triggeredAt: triggeredDeals.triggeredAt,
+        expiresAt: triggeredDeals.expiresAt,
+        isActive: triggeredDeals.isActive,
+        
+        // Promotion fields
+        promotion: {
+          id: promotions.id,
+          teamId: promotions.teamId,
+          restaurantId: promotions.restaurantId,
+          title: promotions.title,
+          description: promotions.description,
+          offerValue: promotions.offerValue,
+          triggerCondition: promotions.triggerCondition,
+          redemptionInstructions: promotions.redemptionInstructions,
+          promoCode: promotions.promoCode,
+          validUntil: promotions.validUntil,
+          isActive: promotions.isActive,
+        },
+        
+        // Restaurant fields  
+        restaurant: {
+          id: restaurants.id,
+          name: restaurants.name,
+          logoUrl: restaurants.logoUrl,
+          website: restaurants.website,
+          appStoreUrl: restaurants.appStoreUrl,
+          playStoreUrl: restaurants.playStoreUrl,
+          primaryColor: restaurants.primaryColor,
+        },
+        
+        // Team fields
+        team: {
+          id: teams.id,
+          name: teams.name,
+          abbreviation: teams.abbreviation,
+          city: teams.city,
+          logoUrl: teams.logoUrl,
+          primaryColor: teams.primaryColor,
+          sport: teams.sport,
+        },
+        
+        // Game fields
+        game: {
+          id: games.id,
+          teamId: games.teamId,
+          opponent: games.opponent,
+          gameDate: games.gameDate,
+          isHome: games.isHome,
+          teamScore: games.teamScore,
+          opponentScore: games.opponentScore,
+          isComplete: games.isComplete,
+          gameStats: games.gameStats,
+        }
+      })
+      .from(triggeredDeals)
+      .leftJoin(promotions, eq(triggeredDeals.promotionId, promotions.id))
+      .leftJoin(restaurants, eq(promotions.restaurantId, restaurants.id))
+      .leftJoin(teams, eq(promotions.teamId, teams.id))
+      .leftJoin(games, eq(triggeredDeals.gameId, games.id))
+      .where(eq(triggeredDeals.isActive, true))
+      .orderBy(desc(triggeredDeals.triggeredAt));
+  }
+
+  // PERFORMANCE: Paginated version for better performance with large datasets
+  async getActiveTriggeredDealsWithDetailsPaginated(page: number = 1, limit: number = 20): Promise<{deals: any[], total: number}> {
+    const offset = (page - 1) * limit;
+    
+    // Get total count for pagination info
+    const totalResult = await db
+      .select({ count: count() })
+      .from(triggeredDeals)
+      .where(eq(triggeredDeals.isActive, true));
+    
+    const total = totalResult[0]?.count || 0;
+    
+    // Get paginated results
+    const deals = await db
+      .select({
+        // TriggeredDeal fields
+        id: triggeredDeals.id,
+        promotionId: triggeredDeals.promotionId,
+        dealPageId: triggeredDeals.dealPageId,
+        gameId: triggeredDeals.gameId,
+        triggeredAt: triggeredDeals.triggeredAt,
+        expiresAt: triggeredDeals.expiresAt,
+        isActive: triggeredDeals.isActive,
+        
+        // Promotion fields
+        promotion: {
+          id: promotions.id,
+          teamId: promotions.teamId,
+          restaurantId: promotions.restaurantId,
+          title: promotions.title,
+          description: promotions.description,
+          offerValue: promotions.offerValue,
+          triggerCondition: promotions.triggerCondition,
+          redemptionInstructions: promotions.redemptionInstructions,
+          promoCode: promotions.promoCode,
+          validUntil: promotions.validUntil,
+          isActive: promotions.isActive,
+        },
+        
+        // Restaurant fields  
+        restaurant: {
+          id: restaurants.id,
+          name: restaurants.name,
+          logoUrl: restaurants.logoUrl,
+          website: restaurants.website,
+          appStoreUrl: restaurants.appStoreUrl,
+          playStoreUrl: restaurants.playStoreUrl,
+          primaryColor: restaurants.primaryColor,
+        },
+        
+        // Team fields
+        team: {
+          id: teams.id,
+          name: teams.name,
+          abbreviation: teams.abbreviation,
+          city: teams.city,
+          logoUrl: teams.logoUrl,
+          primaryColor: teams.primaryColor,
+          sport: teams.sport,
+        },
+        
+        // Game fields
+        game: {
+          id: games.id,
+          teamId: games.teamId,
+          opponent: games.opponent,
+          gameDate: games.gameDate,
+          isHome: games.isHome,
+          teamScore: games.teamScore,
+          opponentScore: games.opponentScore,
+          isComplete: games.isComplete,
+          gameStats: games.gameStats,
+        }
+      })
+      .from(triggeredDeals)
+      .leftJoin(promotions, eq(triggeredDeals.promotionId, promotions.id))
+      .leftJoin(restaurants, eq(promotions.restaurantId, restaurants.id))
+      .leftJoin(teams, eq(promotions.teamId, teams.id))
+      .leftJoin(games, eq(triggeredDeals.gameId, games.id))
+      .where(eq(triggeredDeals.isActive, true))
+      .orderBy(desc(triggeredDeals.triggeredAt))
+      .limit(limit)
+      .offset(offset);
+    
+    return { deals, total };
+  }
+
   async getTriggeredDealsByGame(gameId: number): Promise<TriggeredDeal[]> {
     return await db
       .select()
@@ -450,21 +611,6 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(discoveredSites.foundAt));
   }
 
-  async getPendingDiscoveredSites(): Promise<DiscoveredSite[]> {
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    
-    return await db
-      .select()
-      .from(discoveredSites)
-      .where(
-        and(
-          eq(discoveredSites.status, 'pending'),
-          gte(discoveredSites.foundAt, sixMonthsAgo)
-        )
-      )
-      .orderBy(desc(discoveredSites.confidence));
-  }
 
   async updateDiscoveredSite(id: number, updates: Partial<InsertDiscoveredSite>): Promise<DiscoveredSite> {
     const [updated] = await db
@@ -544,9 +690,6 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users);
   }
 
-  async getPromotionsByTeam(teamId: number): Promise<any[]> {
-    return await db.select().from(promotions).where(eq(promotions.teamId, teamId));
-  }
 
   async getUpcomingGames(days: number): Promise<any[]> {
     const futureDate = new Date();
@@ -564,9 +707,9 @@ export class DatabaseStorage implements IStorage {
   async storeAlertHistory(alertData: any): Promise<void> {
     await db.insert(alertHistory).values({
       userId: alertData.userId,
-      gameId: alertData.gameId,
+      triggeredDealId: alertData.triggeredDealId,
       alertType: alertData.alertType as 'email' | 'sms',
-      status: alertData.status as 'sent' | 'failed',
+      status: alertData.status as 'sent' | 'failed' | 'pending',
       sentAt: alertData.sentAt || new Date(),
     });
   }
@@ -575,11 +718,9 @@ export class DatabaseStorage implements IStorage {
     await db.insert(triggeredDeals).values({
       promotionId: dealData.promotionId,
       gameId: dealData.gameId,
-      teamId: dealData.teamId,
-      triggerCondition: dealData.triggerCondition,
-      actualResult: dealData.actualResult,
-      isActive: dealData.isActive,
-      triggeredAt: dealData.triggeredAt,
+      dealPageId: dealData.dealPageId,
+      isActive: dealData.isActive ?? true,
+      triggeredAt: dealData.triggeredAt || new Date(),
       expiresAt: dealData.expiresAt,
     });
   }

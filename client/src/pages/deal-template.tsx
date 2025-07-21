@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { useSearch } from "wouter";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -56,7 +56,7 @@ export default function DealTemplate({ discoveredSiteId, initialData, onSuccess 
   const restaurantFromUrl = urlParams.get('restaurant');
 
   // Fetch discovered site data if siteId provided
-  const { data: siteData } = useQuery({
+  const { data: siteData } = useQuery<{site: any}>({
     queryKey: [`/api/admin/discovery/sites/${siteIdFromUrl}`],
     enabled: !!siteIdFromUrl,
   });

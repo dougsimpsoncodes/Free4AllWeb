@@ -51,7 +51,7 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground">
-                Welcome, {user?.firstName || 'Dev User'}!
+                Welcome, {(user as any)?.firstName || 'Dev User'}!
               </span>
               <a
                 href="/admin"

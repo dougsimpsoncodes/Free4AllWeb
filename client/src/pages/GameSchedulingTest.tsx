@@ -82,13 +82,13 @@ export default function GameSchedulingTest() {
   });
 
   // Fetch scheduling stats
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading } = useQuery<{success: boolean; stats: any}>({
     queryKey: ["/api/admin/game-scheduling/stats"],
     retry: false,
   });
 
   // Fetch upcoming games
-  const { data: upcomingGames, isLoading: gamesLoading } = useQuery({
+  const { data: upcomingGames, isLoading: gamesLoading } = useQuery<{success: boolean; games: any[]}>({
     queryKey: ["/api/admin/game-scheduling/upcoming"],
     retry: false,
   });

@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest } from "@/lib/queryClient";
+import type { Team, Restaurant, AlertPreference, User } from "@/types/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,28 +23,28 @@ export default function AlertSubscription() {
   const [alertTiming, setAlertTiming] = useState<string>("immediate");
 
   // Fetch data
-  const { data: teams = [] } = useQuery({
+  const { data: teams = [] } = useQuery<Team[]>({
     queryKey: ["/api/teams"],
     retry: false,
   });
 
-  const { data: restaurants = [] } = useQuery({
+  const { data: restaurants = [] } = useQuery<Restaurant[]>({
     queryKey: ["/api/restaurants"],
     retry: false,
   });
 
-  const { data: alertPreferences = [], isLoading: preferencesLoading } = useQuery({
+  const { data: alertPreferences = [], isLoading: preferencesLoading } = useQuery<AlertPreference[]>({
     queryKey: ["/api/alert-preferences"],
     retry: false,
   });
 
   // Set initial values from existing preferences
-  useState(() => {
+  useEffect(() => {
     if (alertPreferences.length > 0) {
-      const teamIds = [...new Set(alertPreferences.map((p: any) => p.teamId))];
+      const teamIds = Array.from(new Set(alertPreferences.map(p => p.teamId)));
       const restaurantIds = alertPreferences
-        .filter((p: any) => p.restaurantId)
-        .map((p: any) => p.restaurantId);
+        .filter(p => p.restaurantId)
+        .map(p => p.restaurantId);
       const timing = alertPreferences[0]?.alertTiming || "immediate";
       
       setSelectedTeams(teamIds);
@@ -119,9 +120,9 @@ export default function AlertSubscription() {
       setSelectedTeams(prev => prev.filter(id => id !== teamId));
       // Remove existing preferences for this team
       const preferencesToDelete = alertPreferences.filter(
-        (p: any) => p.teamId === teamId
+        (p) => p.teamId === teamId
       );
-      preferencesToDelete.forEach((pref: any) => {
+      preferencesToDelete.forEach((pref) => {
         deletePreferenceMutation.mutate(pref.id);
       });
     }
@@ -147,7 +148,7 @@ export default function AlertSubscription() {
 
     try {
       // Clear existing preferences first
-      const deletePromises = alertPreferences.map((pref: any) =>
+      const deletePromises = alertPreferences.map((pref) =>
         deletePreferenceMutation.mutateAsync(pref.id)
       );
       await Promise.all(deletePromises);
@@ -187,8 +188,8 @@ export default function AlertSubscription() {
     }
   };
 
-  const activeTeams = teams.filter((team: any) => team.isActive);
-  const dodgers = activeTeams.find((team: any) => team.id === 1);
+  const activeTeams = teams.filter(team => team.isActive);
+  const dodgers = activeTeams.find(team => team.id === 1);
 
   return (
     <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl text-white p-8 md:p-12">
@@ -209,7 +210,7 @@ export default function AlertSubscription() {
           <div>
             <Label className="block text-sm font-medium text-gray-700 mb-2">Email Address</Label>
             <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600">
-              {user?.email || "Please log in to set up alerts"}
+              {(user as User)?.email || "Please log in to set up alerts"}
             </div>
           </div>
 
@@ -265,7 +266,7 @@ export default function AlertSubscription() {
               Restaurant Preferences (Optional)
             </Label>
             <div className="grid grid-cols-2 gap-2">
-              {restaurants.slice(0, 4).map((restaurant: any) => (
+              {restaurants.slice(0, 4).map((restaurant) => (
                 <div key={restaurant.id} className="flex items-center space-x-2">
                   <Checkbox
                     id={`restaurant-${restaurant.id}`}
@@ -324,8 +325,8 @@ export default function AlertSubscription() {
                 Current Subscriptions:
               </div>
               <div className="flex flex-wrap gap-2">
-                {[...new Set(alertPreferences.map((p: any) => p.teamId))].map((teamId: number) => {
-                  const team = teams.find((t: any) => t.id === teamId);
+                {Array.from(new Set(alertPreferences.map(p => p.teamId))).map((teamId: number) => {
+                  const team = teams.find(t => t.id === teamId);
                   return team ? (
                     <Badge key={teamId} variant="secondary" className="bg-blue-100 text-blue-800">
                       {team.name}

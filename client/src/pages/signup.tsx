@@ -47,9 +47,9 @@ export default function SignupPage() {
   const form = useForm<SignupFormData>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
-      firstName: user?.firstName || "",
-      lastName: user?.lastName || "",
-      email: user?.email || "",
+      firstName: (user as any)?.firstName || "",
+      lastName: (user as any)?.lastName || "",
+      email: (user as any)?.email || "",
       phoneNumber: "",
       favoriteTeams: [],
       emailNotifications: true,
@@ -60,7 +60,7 @@ export default function SignupPage() {
   });
 
   // Fetch available teams
-  const { data: teams = [] } = useQuery({
+  const { data: teams = [] } = useQuery<any[]>({
     queryKey: ["/api/teams"],
   });
 
@@ -76,20 +76,14 @@ export default function SignupPage() {
       }));
 
       for (const preference of preferences) {
-        await apiRequest("/api/alert-preferences", {
-          method: "POST",
-          body: preference,
-        });
+        await apiRequest("POST", "/api/alert-preferences", preference);
       }
 
       // Update user profile with additional info
-      await apiRequest("/api/user/profile", {
-        method: "PATCH",
-        body: {
-          city: data.city,
-          zipCode: data.zipCode,
-          phoneNumber: data.phoneNumber,
-        },
+      await apiRequest("PATCH", "/api/user/profile", {
+        city: data.city,
+        zipCode: data.zipCode,
+        phoneNumber: data.phoneNumber,
       });
 
       return preferences;
@@ -304,7 +298,7 @@ export default function SignupPage() {
                           <FormItem>
                             <FormLabel>Select your favorite teams (choose at least one)</FormLabel>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                              {teams.map((team: any) => (
+                              {(teams as any[]).map((team: any) => (
                                 <FormField
                                   key={team.id}
                                   control={form.control}

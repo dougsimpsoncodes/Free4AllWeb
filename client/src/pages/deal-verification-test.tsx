@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { CheckCircle, XCircle, PlayCircle, Database, TestTube, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import type { DealPage, Game, TriggeredDeal } from "@/types/api";
 
 export default function DealVerificationTestPage() {
   const { toast } = useToast();
@@ -21,17 +22,17 @@ export default function DealVerificationTestPage() {
   const [testCondition, setTestCondition] = useState("Home win + 6 runs");
 
   // Fetch deal pages
-  const { data: dealPages, isLoading: dealPagesLoading } = useQuery({
+  const { data: dealPages, isLoading: dealPagesLoading } = useQuery<{dealPages: DealPage[]}>({
     queryKey: ["/api/deal-verification/deal-pages"],
   });
 
   // Fetch recent games (Dodgers team ID: 119)
-  const { data: recentGames, isLoading: gamesLoading } = useQuery({
+  const { data: recentGames, isLoading: gamesLoading } = useQuery<{games: Game[]}>({
     queryKey: ["/api/deal-verification/recent-games/119"],
   });
 
   // Fetch active triggered deals
-  const { data: activeDeals, isLoading: activeDealsLoading } = useQuery({
+  const { data: activeDeals, isLoading: activeDealsLoading } = useQuery<{activeDeals: any[]}>({
     queryKey: ["/api/deal-verification/active-deals"],
   });
 
@@ -174,7 +175,7 @@ export default function DealVerificationTestPage() {
                       <SelectValue placeholder="Choose a deal to test" />
                     </SelectTrigger>
                     <SelectContent>
-                      {dealPages?.dealPages?.map((deal: any) => (
+                      {dealPages?.dealPages?.map((deal) => (
                         <SelectItem key={deal.id} value={deal.id.toString()}>
                           {deal.restaurant}: {deal.title}
                         </SelectItem>
@@ -190,7 +191,7 @@ export default function DealVerificationTestPage() {
                       <SelectValue placeholder="Choose a game to test" />
                     </SelectTrigger>
                     <SelectContent>
-                      {recentGames?.games?.map((game: any) => (
+                      {recentGames?.games?.map((game) => (
                         <SelectItem key={game.id} value={game.id.toString()}>
                           vs {game.opponent} ({game.teamScore}-{game.opponentScore}) {game.isHome ? "Home" : "Away"}
                         </SelectItem>
@@ -211,7 +212,7 @@ export default function DealVerificationTestPage() {
               {selectedDealId && dealPages?.dealPages && (
                 <div className="mt-4 p-4 bg-muted rounded-lg">
                   {(() => {
-                    const deal = dealPages.dealPages.find((d: any) => d.id.toString() === selectedDealId);
+                    const deal = dealPages.dealPages.find((d) => d.id.toString() === selectedDealId);
                     return deal ? (
                       <div>
                         <h4 className="font-semibold">{deal.restaurant}: {deal.title}</h4>
@@ -243,7 +244,7 @@ export default function DealVerificationTestPage() {
                 <div>Loading games...</div>
               ) : (
                 <div className="space-y-3">
-                  {recentGames?.games?.map((game: any) => (
+                  {recentGames?.games?.map((game) => (
                     <div key={game.id} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex-1">
                         <div className="font-medium">
@@ -293,7 +294,7 @@ export default function DealVerificationTestPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {activeDeals?.activeDeals?.map((item: any, index: number) => (
+                  {activeDeals?.activeDeals?.map((item, index: number) => (
                     <div key={index} className="p-4 border rounded-lg">
                       <div className="flex items-start justify-between mb-2">
                         <div>

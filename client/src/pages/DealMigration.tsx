@@ -81,8 +81,11 @@ export default function DealMigration() {
 
   // Backup test deals
   const backupTestDealsMutation = useMutation({
-    mutationFn: () => apiRequest('/api/admin/migration/backup-test-deals', 'POST'),
-    onSuccess: (data) => {
+    mutationFn: async () => {
+      const response = await apiRequest('/api/admin/migration/backup-test-deals', 'POST');
+      return await response.text();
+    },
+    onSuccess: (data: string) => {
       // Create download link
       const blob = new Blob([data], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);

@@ -21,7 +21,7 @@ class PromotionService {
         return;
       }
 
-      const promotions = await storage.getPromotionsByTeam(game.teamId);
+      const promotions = await storage.getPromotionsByTeam(game.teamId || 0);
       if (promotions.length === 0) {
         console.log(`No promotions found for team ${game.teamId}`);
         return;
@@ -53,7 +53,7 @@ class PromotionService {
         console.log(`Total triggered deals: ${allTriggeredDeals.length} (${triggeredDeals.length} promotions + ${discoveredDealResults.triggeredDeals.length} discovered deals)`);
         
         // Send alerts to users who have preferences for this team
-        await this.sendAlertsForTriggeredDeals(game.teamId, allTriggeredDeals);
+        await this.sendAlertsForTriggeredDeals(game.teamId || 0, allTriggeredDeals);
       }
     } catch (error) {
       console.error('Error processing game for promotions:', error);
@@ -71,7 +71,7 @@ class PromotionService {
 
     switch (trigger.type) {
       case 'win_home':
-        return game.isHome && didWin;
+        return Boolean(game.isHome) && didWin;
 
       case 'any_win':
         return didWin;
@@ -80,13 +80,13 @@ class PromotionService {
         return didLose;
 
       case 'home_loss':
-        return game.isHome && didLose;
+        return Boolean(game.isHome) && didLose;
 
       case 'runs_scored':
         return runsScored >= (trigger.threshold || 6);
 
       case 'home_win_and_runs':
-        return game.isHome && didWin && runsScored >= (trigger.runsThreshold || 6);
+        return Boolean(game.isHome) && didWin && runsScored >= (trigger.runsThreshold || 6);
 
       case 'strikeouts':
         // Batting strikeouts (team got struck out)
@@ -97,11 +97,11 @@ class PromotionService {
         return gameStats.pitchingStrikeOuts >= (trigger.threshold || 7);
 
       case 'stolen_base_home':
-        return game.isHome && (gameStats.stolenBases || 0) > 0;
+        return Boolean(game.isHome) && (gameStats.stolenBases || 0) > 0;
 
       case 'stolen_base_ws':
         // Only during World Series (seasonal promotion)
-        return trigger.seasonal && (gameStats.stolenBases || 0) > 0;
+        return (trigger.seasonal ?? false) && (gameStats.stolenBases || 0) > 0;
 
       default:
         console.warn(`Unknown trigger type: ${trigger.type}`);

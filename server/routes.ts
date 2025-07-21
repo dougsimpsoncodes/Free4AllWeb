@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./googleAuth";
+import { setupAuth, isAuthenticated, isAdmin, csrfProtection } from "./googleAuth";
 import { mlbApiService } from "./services/mlbApiService";
 import { gameProcessor } from "./services/gameProcessor";
 import { db } from "./db";
@@ -72,7 +72,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         emailsSent.push('Pre-game Alert');
         console.log('✅ Sent: Pre-game Alert');
       } catch (error) {
-        console.warn('Failed to send pre-game alert:', error.message);
+        console.warn('Failed to send pre-game alert:', (error as Error).message);
       }
 
       // Wait 10 seconds between emails to avoid rate limits
@@ -105,7 +105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         emailsSent.push('Post-game Victory Alert');
         console.log('✅ Sent: Post-game Victory Alert');
       } catch (error) {
-        console.warn('Failed to send post-game alert:', error.message);
+        console.warn('Failed to send post-game alert:', (error as Error).message);
       }
 
       res.json({ 
@@ -116,8 +116,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
     } catch (error) {
-      console.error('Error sending email showcase:', error);
-      res.status(500).json({ error: error.message });
+      console.error('Error sending email showcase:', (error as Error).message);
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -142,8 +142,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
     } catch (error) {
-      console.error('Error testing SMS:', error);
-      res.status(500).json({ error: error.message });
+      console.error('Error testing SMS:', (error as Error).message);
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -183,8 +183,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
     } catch (error) {
-      console.error('Error sending pre-game SMS:', error);
-      res.status(500).json({ error: error.message });
+      console.error('Error sending pre-game SMS:', (error as Error).message);
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -227,8 +227,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
     } catch (error) {
-      console.error('Error sending post-game SMS:', error);
-      res.status(500).json({ error: error.message });
+      console.error('Error sending post-game SMS:', (error as Error).message);
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -241,8 +241,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         providers
       });
     } catch (error) {
-      console.error('Error getting SMS provider status:', error);
-      res.status(500).json({ error: error.message });
+      console.error('Error getting SMS provider status:', (error as Error).message);
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -321,8 +321,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
     } catch (error) {
-      console.error('Error in direct Twilio test:', error);
-      res.status(500).json({ error: error.message });
+      console.error('Error in direct Twilio test:', (error as Error).message);
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -353,7 +353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isNewUser
       });
     } catch (error) {
-      console.error("Error fetching user:", error);
+      console.error("Error fetching user:", (error as Error).message);
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
@@ -379,7 +379,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(updatedUser);
     } catch (error) {
-      console.error("Error updating user profile:", error);
+      console.error("Error updating user profile:", (error as Error).message);
       res.status(500).json({ message: "Failed to update profile" });
     }
   });
@@ -390,7 +390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teams = await storage.getActiveTeams();
       res.json(teams);
     } catch (error) {
-      console.error("Error fetching teams:", error);
+      console.error("Error fetching teams:", (error as Error).message);
       res.status(500).json({ message: "Failed to fetch teams" });
     }
   });
@@ -400,7 +400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const restaurants = await storage.getActiveRestaurants();
       res.json(restaurants);
     } catch (error) {
-      console.error("Error fetching restaurants:", error);
+      console.error("Error fetching restaurants:", (error as Error).message);
       res.status(500).json({ message: "Failed to fetch restaurants" });
     }
   });
@@ -418,7 +418,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(promotions);
     } catch (error) {
-      console.error("Error fetching promotions:", error);
+      console.error("Error fetching promotions:", (error as Error).message);
       res.status(500).json({ message: "Failed to fetch promotions" });
     }
   });
@@ -426,36 +426,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/active-deals', async (req, res) => {
     try {
       const teamId = req.query.teamId as string;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100); // Max 100 per page
       let deals;
 
       if (teamId) {
         deals = await promotionService.getActiveDealsForTeam(parseInt(teamId));
+        res.json(deals);
       } else {
-        // Get all active deals with related data
-        const triggeredDeals = await storage.getActiveTriggeredDeals();
-        deals = [];
-
-        for (const deal of triggeredDeals) {
-          const promotion = await storage.getPromotion(deal.promotionId!);
-          if (promotion) {
-            const restaurant = await storage.getRestaurant(promotion.restaurantId!);
-            const team = await storage.getTeam(promotion.teamId!);
-            const game = await storage.getGame(deal.gameId!);
-            
-            deals.push({
-              deal,
-              promotion,
-              restaurant,
-              team,
-              game,
-            });
+        // PERFORMANCE: Get paginated deals with related data in ONE query instead of N+1
+        const result = await storage.getActiveTriggeredDealsWithDetailsPaginated(page, limit);
+        res.json({
+          deals: result.deals,
+          pagination: {
+            page,
+            limit,
+            total: result.total,
+            totalPages: Math.ceil(result.total / limit),
+            hasNext: page * limit < result.total,
+            hasPrev: page > 1
           }
-        }
+        });
       }
-
-      res.json(deals);
     } catch (error) {
-      console.error("Error fetching active deals:", error);
+      console.error("Error fetching active deals:", (error as Error).message);
       res.status(500).json({ message: "Failed to fetch active deals" });
     }
   });
@@ -467,7 +461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const games = await storage.getRecentGames(teamId, limit);
       res.json(games);
     } catch (error) {
-      console.error("Error fetching recent games:", error);
+      console.error("Error fetching recent games:", (error as Error).message);
       res.status(500).json({ message: "Failed to fetch recent games" });
     }
   });
@@ -479,7 +473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const preferences = await storage.getUserAlertPreferences(userId);
       res.json(preferences);
     } catch (error) {
-      console.error("Error fetching alert preferences:", error);
+      console.error("Error fetching alert preferences:", (error as Error).message);
       res.status(500).json({ message: "Failed to fetch alert preferences" });
     }
   });
@@ -505,7 +499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(preference);
     } catch (error) {
-      console.error("Error creating alert preference:", error);
+      console.error("Error creating alert preference:", (error as Error).message);
       res.status(400).json({ message: "Failed to create alert preference" });
     }
   });
@@ -526,7 +520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedPreference = await storage.updateAlertPreference(preferenceId, req.body);
       res.json(updatedPreference);
     } catch (error) {
-      console.error("Error updating alert preference:", error);
+      console.error("Error updating alert preference:", (error as Error).message);
       res.status(400).json({ message: "Failed to update alert preference" });
     }
   });
@@ -547,63 +541,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteAlertPreference(preferenceId);
       res.json({ message: "Alert preference deleted" });
     } catch (error) {
-      console.error("Error deleting alert preference:", error);
+      console.error("Error deleting alert preference:", (error as Error).message);
       res.status(400).json({ message: "Failed to delete alert preference" });
     }
   });
 
   // Admin routes (protected)
-  app.post('/api/admin/teams', isAuthenticated, async (req: any, res) => {
+  app.post('/api/admin/teams', csrfProtection, isAdmin, async (req: any, res) => {
     try {
-      // TODO: Add admin role check
+      // Admin role check handled by isAdmin middleware
       const validatedData = insertTeamSchema.parse(req.body);
       const team = await storage.createTeam(validatedData);
       res.json(team);
     } catch (error) {
-      console.error("Error creating team:", error);
+      console.error("Error creating team:", (error as Error).message);
       res.status(400).json({ message: "Failed to create team" });
     }
   });
 
-  app.post('/api/admin/restaurants', isAuthenticated, async (req: any, res) => {
+  app.post('/api/admin/restaurants', csrfProtection, isAdmin, async (req: any, res) => {
     try {
-      // TODO: Add admin role check
+      // Admin role check handled by isAdmin middleware
       const validatedData = insertRestaurantSchema.parse(req.body);
       const restaurant = await storage.createRestaurant(validatedData);
       res.json(restaurant);
     } catch (error) {
-      console.error("Error creating restaurant:", error);
+      console.error("Error creating restaurant:", (error as Error).message);
       res.status(400).json({ message: "Failed to create restaurant" });
     }
   });
 
-  app.post('/api/admin/promotions', isAuthenticated, async (req: any, res) => {
+  app.post('/api/admin/promotions', csrfProtection, isAdmin, async (req: any, res) => {
     try {
-      // TODO: Add admin role check
+      // Admin role check handled by isAdmin middleware
       const validatedData = insertPromotionSchema.parse(req.body);
       const promotion = await storage.createPromotion(validatedData);
       res.json(promotion);
     } catch (error) {
-      console.error("Error creating promotion:", error);
+      console.error("Error creating promotion:", (error as Error).message);
       res.status(400).json({ message: "Failed to create promotion" });
     }
   });
 
-  app.post('/api/admin/sync-games/:teamId', isAuthenticated, async (req: any, res) => {
+  app.post('/api/admin/sync-games/:teamId', isAdmin, async (req: any, res) => {
     try {
-      // TODO: Add admin role check
+      // Admin role check handled by isAdmin middleware
       const teamId = parseInt(req.params.teamId);
       await promotionService.syncRecentGames(teamId);
       res.json({ message: "Games synced successfully" });
     } catch (error) {
-      console.error("Error syncing games:", error);
+      console.error("Error syncing games:", (error as Error).message);
       res.status(500).json({ message: "Failed to sync games" });
     }
   });
 
-  app.get('/api/admin/analytics', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/analytics', isAdmin, async (req: any, res) => {
     try {
-      // TODO: Add admin role check
+      // Admin role check handled by isAdmin middleware
       const activeDeals = await storage.getActiveTriggeredDeals();
       const totalUsers = await storage.getUsersByTeamPreference(1); // Dodgers for now
       
@@ -613,7 +607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Add more analytics as needed
       });
     } catch (error) {
-      console.error("Error fetching analytics:", error);
+      console.error("Error fetching analytics:", (error as Error).message);
       res.status(500).json({ message: "Failed to fetch analytics" });
     }
   });
@@ -631,7 +625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(404).json({ message: "User not found" });
       }
     } catch (error) {
-      console.error("Error sending test alert:", error);
+      console.error("Error sending test alert:", (error as Error).message);
       res.status(500).json({ message: "Failed to send test alert" });
     }
   });
@@ -642,7 +636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teams = await storage.getActiveTeams();
       res.json(teams);
     } catch (error) {
-      console.error('Error fetching teams:', error);
+      console.error('Error fetching teams:', (error as Error).message);
       res.status(500).json({ message: 'Failed to fetch teams' });
     }
   });
@@ -654,7 +648,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filteredTeams = teams.filter(team => team.sport?.toLowerCase() === sport.toLowerCase());
       res.json(filteredTeams);
     } catch (error) {
-      console.error('Error fetching teams by sport:', error);
+      console.error('Error fetching teams by sport:', (error as Error).message);
       res.status(500).json({ message: 'Failed to fetch teams' });
     }
   });
@@ -664,7 +658,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const promotions = await storage.getActivePromotions();
       res.json(promotions);
     } catch (error) {
-      console.error('Error fetching active promotions:', error);
+      console.error('Error fetching active promotions:', (error as Error).message);
       res.status(500).json({ message: 'Failed to fetch promotions' });
     }
   });
@@ -674,7 +668,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const triggeredDeals = await storage.getActiveTriggeredDeals();
       res.json(triggeredDeals);
     } catch (error) {
-      console.error('Error fetching triggered deals:', error);
+      console.error('Error fetching triggered deals:', (error as Error).message);
       res.status(500).json({ message: 'Failed to fetch triggered deals' });
     }
   });
@@ -686,7 +680,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const preferences = await storage.getUserAlertPreferences(userId);
       res.json(preferences);
     } catch (error) {
-      console.error('Error fetching alert preferences:', error);
+      console.error('Error fetching alert preferences:', (error as Error).message);
       res.status(500).json({ message: 'Failed to fetch alert preferences' });
     }
   });
@@ -699,13 +693,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const preference = await storage.createAlertPreference({
         userId,
         teamId,
-        emailEnabled: emailEnabled ?? true,
-        smsEnabled: smsEnabled ?? false
+        emailAlerts: emailEnabled ?? true,
+        smsAlerts: smsEnabled ?? false
       });
       
       res.json(preference);
     } catch (error) {
-      console.error('Error creating alert preference:', error);
+      console.error('Error creating alert preference:', (error as Error).message);
       res.status(500).json({ message: 'Failed to create alert preference' });
     }
   });
@@ -720,7 +714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       res.json(status);
     } catch (error) {
-      console.error('Error fetching game processor status:', error);
+      console.error('Error fetching game processor status:', (error as Error).message);
       res.status(500).json({ message: 'Failed to fetch status' });
     }
   });
@@ -730,17 +724,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const recentGames = await storage.getRecentGames(1, 10); // Dodgers recent games
       res.json(recentGames);
     } catch (error) {
-      console.error('Error fetching today\'s games:', error);
+      console.error('Error fetching today\'s games:', (error as Error).message);
       res.status(500).json({ message: 'Failed to fetch games' });
     }
   });
 
   app.post('/api/mlb/games/process', async (req, res) => {
     try {
-      await gameProcessor.processAllTeams();
+      await gameProcessor.triggerManualProcess();
       res.json({ message: 'Game processing completed successfully' });
     } catch (error) {
-      console.error('Error processing games:', error);
+      console.error('Error processing games:', (error as Error).message);
       res.status(500).json({ message: 'Failed to process games' });
     }
   });
@@ -756,7 +750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
       res.json(formattedPromotions);
     } catch (error) {
-      console.error('Error fetching promotions:', error);
+      console.error('Error fetching promotions:', (error as Error).message);
       res.status(500).json({ message: 'Failed to fetch promotions' });
     }
   });
@@ -767,18 +761,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await seedSportsData();
       res.json({ message: 'Sports data seeded successfully' });
     } catch (error) {
-      console.error('Error seeding data:', error);
+      console.error('Error seeding data:', (error as Error).message);
       res.status(500).json({ message: 'Failed to seed data' });
     }
   });
 
-  app.post('/api/admin/seed-demo-games', isAuthenticated, async (req, res) => {
+  app.post('/api/admin/seed-demo-games', isAdmin, async (req, res) => {
     try {
       const { seedDemoGameData } = await import('./seedGameData');
       const result = await seedDemoGameData();
       res.json({ message: 'Demo game data seeded successfully', ...result });
     } catch (error) {
-      console.error('Error seeding demo game data:', error);
+      console.error('Error seeding demo game data:', (error as Error).message);
       res.status(500).json({ message: 'Failed to seed demo game data' });
     }
   });
@@ -789,7 +783,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await promotionService.syncRecentGames(parseInt(teamId));
       res.json({ message: 'Games synced successfully' });
     } catch (error) {
-      console.error('Error syncing games:', error);
+      console.error('Error syncing games:', (error as Error).message);
       res.status(500).json({ message: 'Failed to sync games' });
     }
   });
@@ -802,7 +796,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const games = await storage.getRecentGames(parseInt(teamId), limit);
       res.json(games);
     } catch (error) {
-      console.error('Error fetching recent games:', error);
+      console.error('Error fetching recent games:', (error as Error).message);
       res.status(500).json({ message: 'Failed to fetch recent games' });
     }
   });
@@ -814,8 +808,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const report = await gameScrapingService.generateScrapingReport();
       res.json(report);
     } catch (error) {
-      console.error('Error during team scraping:', error);
-      res.status(500).json({ message: 'Failed to scrape team data', error: error.message });
+      console.error('Error during team scraping:', (error as Error).message);
+      res.status(500).json({ message: 'Failed to scrape team data', error: (error as Error).message });
     }
   });
 
@@ -830,8 +824,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await gameScrapingService.scrapeTeamGames(team);
       res.json(result);
     } catch (error) {
-      console.error('Error scraping team:', error);
-      res.status(500).json({ message: 'Failed to scrape team data', error: error.message });
+      console.error('Error scraping team:', (error as Error).message);
+      res.status(500).json({ message: 'Failed to scrape team data', error: (error as Error).message });
     }
   });
 
@@ -841,8 +835,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const analysis = await gameScrapingService.testPromotionTriggers(parseInt(teamId));
       res.json(analysis);
     } catch (error) {
-      console.error('Error testing promotions:', error);
-      res.status(500).json({ message: 'Failed to test promotions', error: error.message });
+      console.error('Error testing promotions:', (error as Error).message);
+      res.status(500).json({ message: 'Failed to test promotions', error: (error as Error).message });
     }
   });
 
@@ -864,10 +858,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         apiStatus: games.length > 0 ? 'working' : 'no_data'
       });
     } catch (error) {
-      console.error('Error testing sports API:', error);
+      console.error('Error testing sports API:', (error as Error).message);
       res.status(500).json({ 
         message: 'Sports API test failed', 
-        error: error.message,
+        error: (error as Error).message,
         apiStatus: 'error'
       });
     }
@@ -881,7 +875,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   } : isAuthenticated;
 
   // NEW: Enhanced Discovery Engine with Integrated Social Media Search
-  app.post("/api/admin/discovery/run", authMiddleware, async (req, res) => {
+  app.post("/api/admin/discovery/run", isAdmin, async (req, res) => {
     try {
       console.log('🚀 Starting enhanced discovery engine with social media integration...');
       
@@ -892,11 +886,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Execute both discovery methods in parallel for maximum coverage
       const [standardResults, socialResults] = await Promise.all([
         dealDiscoveryEngine.runDiscovery().catch(err => {
-          console.error('Standard discovery error:', err);
+          console.error('Standard discovery error:', (err as Error).message);
           return [];
         }),
         socialMediaDiscovery.discoverDealsLikeHuman().catch(err => {
-          console.error('Social media discovery error:', err);
+          console.error('Social media discovery error:', (err as Error).message);
           return [];
         })
       ]);
@@ -911,15 +905,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         includesSocialMedia: true
       });
     } catch (error) {
-      console.error("Discovery engine error:", error);
+      console.error("Discovery engine error:", (error as Error).message);
       res.status(500).json({
         success: false,
-        error: error.message
+        error: (error as Error).message
       });
     }
   });
 
-  app.get("/api/admin/discovery/sites", authMiddleware, async (req, res) => {
+  app.get("/api/admin/discovery/sites", isAdmin, async (req, res) => {
     try {
       const precision = req.query.precision === 'true';
       const limit = parseInt(req.query.limit as string) || 50;
@@ -933,9 +927,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Get all discovered sites
         sites = await storage.getDiscoveredSites();
         // Sort by confidence score (highest first)
-        sites = sites.sort((a, b) => {
-          const confidenceA = parseFloat(a.confidence) || 0;
-          const confidenceB = parseFloat(b.confidence) || 0;
+        sites = sites.sort((a: any, b: any) => {
+          const confidenceA = parseFloat((a.confidence || '0').toString()) || 0;
+          const confidenceB = parseFloat((b.confidence || '0').toString()) || 0;
           return confidenceB - confidenceA;
         });
       }
@@ -946,15 +940,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         count: sites.length
       });
     } catch (error) {
-      console.error("Error fetching discovered sites:", error);
+      console.error("Error fetching discovered sites:", (error as Error).message);
       res.status(500).json({
         success: false,
-        error: error.message
+        error: (error as Error).message
       });
     }
   });
 
-  app.get("/api/admin/discovery/pending", authMiddleware, async (req, res) => {
+  app.get("/api/admin/discovery/pending", isAdmin, async (req, res) => {
     try {
       const precision = req.query.precision === 'true';
       const limit = parseInt(req.query.limit as string) || 50;
@@ -982,15 +976,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         count: pendingSites.length
       });
     } catch (error) {
-      console.error("Error fetching pending sites:", error);
+      console.error("Error fetching pending sites:", (error as Error).message);
       res.status(500).json({
         success: false,
-        error: error.message
+        error: (error as Error).message
       });
     }
   });
 
-  app.put("/api/admin/discovery/sites/:id", isAuthenticated, async (req, res) => {
+  app.put("/api/admin/discovery/sites/:id", isAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       const updates = req.body;
@@ -1002,15 +996,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         site: updatedSite
       });
     } catch (error) {
-      console.error("Error updating discovered site:", error);
+      console.error("Error updating discovered site:", (error as Error).message);
       res.status(500).json({
         success: false,
-        error: error.message
+        error: (error as Error).message
       });
     }
   });
 
-  app.get("/api/admin/discovery/sources", authMiddleware, async (req, res) => {
+  app.get("/api/admin/discovery/sources", isAdmin, async (req, res) => {
     try {
       const sources = await storage.getDiscoverySources();
       res.json({
@@ -1019,15 +1013,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         count: sources.length
       });
     } catch (error) {
-      console.error("Error fetching discovery sources:", error);
+      console.error("Error fetching discovery sources:", (error as Error).message);
       res.status(500).json({
         success: false,
-        error: error.message
+        error: (error as Error).message
       });
     }
   });
 
-  app.get("/api/admin/discovery/terms", authMiddleware, async (req, res) => {
+  app.get("/api/admin/discovery/terms", isAdmin, async (req, res) => {
     try {
       const terms = await storage.getSearchTerms();
       res.json({
@@ -1036,16 +1030,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         count: terms.length
       });
     } catch (error) {
-      console.error("Error fetching search terms:", error);
+      console.error("Error fetching search terms:", (error as Error).message);
       res.status(500).json({
         success: false,
-        error: error.message
+        error: (error as Error).message
       });
     }
   });
 
   // Enhanced deal discovery endpoints (existing pattern-based)
-  app.get('/api/admin/discover-deals', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/discover-deals', isAdmin, async (req, res) => {
     try {
       console.log('🔍 Starting enhanced deal discovery...');
       const discoveredDeals = await enhancedDealDiscoveryService.discoverAllDeals();
@@ -1057,16 +1051,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         count: discoveredDeals.length 
       });
     } catch (error) {
-      console.error('Enhanced deal discovery failed:', error);
+      console.error('Enhanced deal discovery failed:', (error as Error).message);
       res.status(500).json({ 
         success: false, 
         error: 'Failed to discover deals',
-        details: error.message
+        details: (error as Error).message
       });
     }
   });
 
-  app.get('/api/admin/deals', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/deals', isAdmin, async (req, res) => {
     try {
       const deals = await enhancedDealDiscoveryService.getDiscoveredDeals();
       res.json({ 
@@ -1075,16 +1069,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         count: deals.length 
       });
     } catch (error) {
-      console.error('Failed to load discovered deals:', error);
+      console.error('Failed to load discovered deals:', (error as Error).message);
       res.status(500).json({ 
         success: false, 
         error: 'Failed to load discovered deals',
-        details: error.message
+        details: (error as Error).message
       });
     }
   });
 
-  app.post('/api/admin/deals/:dealId/approve', isAuthenticated, async (req, res) => {
+  app.post('/api/admin/deals/:dealId/approve', isAdmin, async (req, res) => {
     try {
       const { dealId } = req.params;
       const { imageAssetPath } = req.body;
@@ -1092,84 +1086,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await enhancedDealDiscoveryService.approveDeal(dealId, imageAssetPath);
       res.json({ success: true, message: 'Deal approved successfully' });
     } catch (error) {
-      console.error('Failed to approve deal:', error);
+      console.error('Failed to approve deal:', (error as Error).message);
       res.status(500).json({ 
         success: false, 
         error: 'Failed to approve deal',
-        details: error.message
+        details: (error as Error).message
       });
     }
   });
 
-  app.post('/api/admin/deals/:dealId/reject', isAuthenticated, async (req, res) => {
+  app.post('/api/admin/deals/:dealId/reject', isAdmin, async (req, res) => {
     try {
       const { dealId } = req.params;
       await enhancedDealDiscoveryService.rejectDeal(dealId);
       res.json({ success: true, message: 'Deal rejected successfully' });
     } catch (error) {
-      console.error('Failed to reject deal:', error);
+      console.error('Failed to reject deal:', (error as Error).message);
       res.status(500).json({ 
         success: false, 
         error: 'Failed to reject deal',
-        details: error.message
+        details: (error as Error).message
       });
     }
   });
 
   // Deal migration endpoints
-  app.get('/api/admin/migration/report', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/migration/report', isAdmin, async (req, res) => {
     try {
       const report = await dealMigrationService.getMigrationReport();
       res.json(report);
     } catch (error) {
-      console.error('Error generating migration report:', error);
+      console.error('Error generating migration report:', (error as Error).message);
       res.status(500).json({ error: 'Failed to generate migration report' });
     }
   });
 
-  app.post('/api/admin/migration/mark-test-deals', isAuthenticated, async (req, res) => {
+  app.post('/api/admin/migration/mark-test-deals', isAdmin, async (req, res) => {
     try {
       const count = await dealMigrationService.markExistingDealsAsTest();
       res.json({ success: true, markedCount: count });
     } catch (error) {
-      console.error('Error marking test deals:', error);
+      console.error('Error marking test deals:', (error as Error).message);
       res.status(500).json({ error: 'Failed to mark test deals' });
     }
   });
 
-  app.get('/api/admin/migration/test-deals', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/migration/test-deals', isAdmin, async (req, res) => {
     try {
       const deals = await dealMigrationService.getTestDeals();
       res.json(deals);
     } catch (error) {
-      console.error('Error fetching test deals:', error);
+      console.error('Error fetching test deals:', (error as Error).message);
       res.status(500).json({ error: 'Failed to fetch test deals' });
     }
   });
 
-  app.get('/api/admin/migration/discovered-deals', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/migration/discovered-deals', isAdmin, async (req, res) => {
     try {
       const deals = await dealMigrationService.getDiscoveredDeals();
       res.json(deals);
     } catch (error) {
-      console.error('Error fetching discovered deals:', error);
+      console.error('Error fetching discovered deals:', (error as Error).message);
       res.status(500).json({ error: 'Failed to fetch discovered deals' });
     }
   });
 
-  app.post('/api/admin/migration/backup-test-deals', isAuthenticated, async (req, res) => {
+  app.post('/api/admin/migration/backup-test-deals', isAdmin, async (req, res) => {
     try {
       const backup = await dealMigrationService.backupTestDeals();
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Content-Disposition', 'attachment; filename="test-deals-backup.json"');
       res.send(backup);
     } catch (error) {
-      console.error('Error creating backup:', error);
+      console.error('Error creating backup:', (error as Error).message);
       res.status(500).json({ error: 'Failed to create backup' });
     }
   });
 
-  app.delete('/api/admin/migration/test-deals', isAuthenticated, async (req, res) => {
+  app.delete('/api/admin/migration/test-deals', isAdmin, async (req, res) => {
     try {
       const { dealIds } = req.body;
       if (!Array.isArray(dealIds)) {
@@ -1179,13 +1173,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const deletedCount = await dealMigrationService.removeTestDeals(dealIds);
       res.json({ success: true, deletedCount });
     } catch (error) {
-      console.error('Error removing test deals:', error);
-      res.status(500).json({ error: error.message || 'Failed to remove test deals' });
+      console.error('Error removing test deals:', (error as Error).message);
+      res.status(500).json({ error: (error as Error).message || 'Failed to remove test deals' });
     }
   });
 
   // Real-time deal monitoring endpoints
-  app.get('/api/admin/deal-monitor/status', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/deal-monitor/status', isAdmin, async (req, res) => {
     try {
       const status = realTimeDealMonitor.getStatus();
       const performance = realTimeDealMonitor.getPerformanceMetrics();
@@ -1198,42 +1192,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         patterns: patternStats
       });
     } catch (error) {
-      console.error('Error getting monitor status:', error);
+      console.error('Error getting monitor status:', (error as Error).message);
       res.status(500).json({ error: 'Failed to get monitor status' });
     }
   });
 
-  app.post('/api/admin/deal-monitor/start', isAuthenticated, async (req, res) => {
+  app.post('/api/admin/deal-monitor/start', isAdmin, async (req, res) => {
     try {
       realTimeDealMonitor.start();
       res.json({ success: true, message: 'Deal monitor started' });
     } catch (error) {
-      console.error('Error starting monitor:', error);
+      console.error('Error starting monitor:', (error as Error).message);
       res.status(500).json({ error: 'Failed to start monitor' });
     }
   });
 
-  app.post('/api/admin/deal-monitor/stop', isAuthenticated, async (req, res) => {
+  app.post('/api/admin/deal-monitor/stop', isAdmin, async (req, res) => {
     try {
       realTimeDealMonitor.stop();
       res.json({ success: true, message: 'Deal monitor stopped' });
     } catch (error) {
-      console.error('Error stopping monitor:', error);
+      console.error('Error stopping monitor:', (error as Error).message);
       res.status(500).json({ error: 'Failed to stop monitor' });
     }
   });
 
-  app.post('/api/admin/deal-monitor/trigger', isAuthenticated, async (req, res) => {
+  app.post('/api/admin/deal-monitor/trigger', isAdmin, async (req, res) => {
     try {
       const result = await realTimeDealMonitor.triggerDiscovery();
       res.json({ success: true, result });
     } catch (error) {
-      console.error('Error triggering discovery:', error);
+      console.error('Error triggering discovery:', (error as Error).message);
       res.status(500).json({ error: 'Failed to trigger discovery' });
     }
   });
 
-  app.post('/api/admin/deal-monitor/interval', isAuthenticated, async (req, res) => {
+  app.post('/api/admin/deal-monitor/interval', isAdmin, async (req, res) => {
     try {
       const { minutes } = req.body;
       if (!minutes || minutes < 5) {
@@ -1243,7 +1237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       realTimeDealMonitor.setInterval(minutes);
       res.json({ success: true, message: `Interval set to ${minutes} minutes` });
     } catch (error) {
-      console.error('Error setting interval:', error);
+      console.error('Error setting interval:', (error as Error).message);
       res.status(500).json({ error: 'Failed to set interval' });
     }
   });
@@ -1254,7 +1248,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const games = await mlbApiService.getTodaysGames();
       res.json(games);
     } catch (error) {
-      console.error("Error fetching today's games:", error);
+      console.error("Error fetching today's games:", (error as Error).message);
       res.status(500).json({ error: "Failed to fetch today's games" });
     }
   });
@@ -1264,7 +1258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await gameProcessor.triggerManualProcess();
       res.json(result);
     } catch (error) {
-      console.error("Error processing games:", error);
+      console.error("Error processing games:", (error as Error).message);
       res.status(500).json({ error: "Failed to process games" });
     }
   });
@@ -1274,7 +1268,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = gameProcessor.getStatus();
       res.json(status);
     } catch (error) {
-      console.error("Error getting game processor status:", error);
+      console.error("Error getting game processor status:", (error as Error).message);
       res.status(500).json({ error: "Failed to get status" });
     }
   });
@@ -1284,7 +1278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teams = await mlbApiService.getAllMLBTeams();
       res.json(teams);
     } catch (error) {
-      console.error("Error fetching MLB teams:", error);
+      console.error("Error fetching MLB teams:", (error as Error).message);
       res.status(500).json({ error: "Failed to fetch MLB teams" });
     }
   });
@@ -1292,12 +1286,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ====== DEAL PAGE ENDPOINTS ======
   
   // Deal Page Routes
-  app.post("/api/admin/deal-pages", isAuthenticated, async (req, res) => {
+  app.post("/api/admin/deal-pages", isAdmin, async (req, res) => {
     try {
       const dealPage = await storage.createDealPage(req.body);
       res.json(dealPage);
     } catch (error) {
-      console.error("Error creating deal page:", error);
+      console.error("Error creating deal page:", (error as Error).message);
       res.status(500).json({ error: "Failed to create deal page" });
     }
   });
@@ -1307,7 +1301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dealPages = await storage.getActiveDealPages();
       res.json(dealPages);
     } catch (error) {
-      console.error("Error fetching deal pages:", error);
+      console.error("Error fetching deal pages:", (error as Error).message);
       res.status(500).json({ error: "Failed to fetch deal pages" });
     }
   });
@@ -1320,43 +1314,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(dealPage);
     } catch (error) {
-      console.error("Error fetching deal page:", error);
+      console.error("Error fetching deal page:", (error as Error).message);
       res.status(500).json({ error: "Failed to fetch deal page" });
     }
   });
 
-  app.get("/api/admin/deal-pages", isAuthenticated, async (req, res) => {
+  app.get("/api/admin/deal-pages", isAdmin, async (req, res) => {
     try {
       const dealPages = await storage.getAllDealPages();
       res.json(dealPages);
     } catch (error) {
-      console.error("Error fetching all deal pages:", error);
+      console.error("Error fetching all deal pages:", (error as Error).message);
       res.status(500).json({ error: "Failed to fetch deal pages" });
     }
   });
 
-  app.put("/api/admin/deal-pages/:id", isAuthenticated, async (req, res) => {
+  app.put("/api/admin/deal-pages/:id", isAdmin, async (req, res) => {
     try {
       const dealPage = await storage.updateDealPage(parseInt(req.params.id), req.body);
       res.json(dealPage);
     } catch (error) {
-      console.error("Error updating deal page:", error);
+      console.error("Error updating deal page:", (error as Error).message);
       res.status(500).json({ error: "Failed to update deal page" });
     }
   });
 
-  app.delete("/api/admin/deal-pages/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/admin/deal-pages/:id", isAdmin, async (req, res) => {
     try {
       await storage.deleteDealPage(parseInt(req.params.id));
       res.json({ success: true });
     } catch (error) {
-      console.error("Error deleting deal page:", error);
+      console.error("Error deleting deal page:", (error as Error).message);
       res.status(500).json({ error: "Failed to delete deal page" });
     }
   });
 
   // Enhanced discovery approval with deal page creation
-  app.post("/api/admin/discovery/approve-and-create-deal", isAuthenticated, async (req, res) => {
+  app.post("/api/admin/discovery/approve-and-create-deal", isAdmin, async (req, res) => {
     try {
       const { siteId, dealPageData } = req.body;
       
@@ -1375,13 +1369,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: `Deal page created: /deal/${dealPage.slug}` 
       });
     } catch (error) {
-      console.error("Error approving and creating deal:", error);
+      console.error("Error approving and creating deal:", (error as Error).message);
       res.status(500).json({ error: "Failed to approve and create deal page" });
     }
   });
 
   // Get single discovered site
-  app.get("/api/admin/discovery/sites/:siteId", isAuthenticated, async (req, res) => {
+  app.get("/api/admin/discovery/sites/:siteId", isAdmin, async (req, res) => {
     try {
       const siteId = parseInt(req.params.siteId);
       const site = await storage.getDiscoveredSite(siteId);
@@ -1392,13 +1386,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ success: true, site });
     } catch (error) {
-      console.error("Error fetching discovered site:", error);
+      console.error("Error fetching discovered site:", (error as Error).message);
       res.status(500).json({ error: "Failed to fetch site" });
     }
   });
 
   // Deal extraction endpoints
-  app.post("/api/admin/discovery/extract-deal/:siteId", isAuthenticated, async (req, res) => {
+  app.post("/api/admin/discovery/extract-deal/:siteId", isAdmin, async (req, res) => {
     try {
       const siteId = parseInt(req.params.siteId);
       
@@ -1416,12 +1410,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Deal extracted successfully" 
       });
     } catch (error) {
-      console.error("Error extracting deal:", error);
+      console.error("Error extracting deal:", (error as Error).message);
       res.status(500).json({ error: "Failed to extract deal" });
     }
   });
 
-  app.post("/api/admin/discovery/batch-extract", isAuthenticated, async (req, res) => {
+  app.post("/api/admin/discovery/batch-extract", isAdmin, async (req, res) => {
     try {
       const { limit = 5 } = req.body;
       const { dealExtractionEngine } = await import('./services/dealExtractionEngine');
@@ -1434,13 +1428,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: `Enhanced ${enhancedCount} discovered deals` 
       });
     } catch (error) {
-      console.error("Error in batch extraction:", error);
+      console.error("Error in batch extraction:", (error as Error).message);
       res.status(500).json({ error: "Failed to batch extract deals" });
     }
   });
 
   // Test endpoint for direct URL extraction
-  app.post("/api/admin/discovery/test-extract", isAuthenticated, async (req, res) => {
+  app.post("/api/admin/discovery/test-extract", isAdmin, async (req, res) => {
     try {
       const { url } = req.body;
       if (!url) {
@@ -1461,13 +1455,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Deal extracted successfully" 
       });
     } catch (error) {
-      console.error("Error testing extraction:", error);
+      console.error("Error testing extraction:", (error as Error).message);
       res.status(500).json({ error: "Failed to extract deal" });
     }
   });
 
   // Admin MLB analytics endpoints
-  app.get('/api/admin/mlb/recent-games/:teamId', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/mlb/recent-games/:teamId', isAdmin, async (req, res) => {
     try {
       const { teamId } = req.params;
       const limit = parseInt(req.query.limit as string) || 10;
@@ -1490,12 +1484,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(recentGames);
     } catch (error) {
-      console.error("Error fetching recent games:", error);
+      console.error("Error fetching recent games:", (error as Error).message);
       res.status(500).json({ error: "Failed to fetch recent games" });
     }
   });
 
-  app.get('/api/admin/mlb/upcoming-games/:teamId', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/mlb/upcoming-games/:teamId', isAdmin, async (req, res) => {
     try {
       const { teamId } = req.params;
       const team = await db.select().from(teams).where(eq(teams.id, parseInt(teamId))).limit(1);
@@ -1526,12 +1520,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(upcomingGames);
     } catch (error) {
-      console.error("Error fetching upcoming games:", error);
+      console.error("Error fetching upcoming games:", (error as Error).message);
       res.status(500).json({ error: "Failed to fetch upcoming games" });
     }
   });
 
-  app.get('/api/admin/mlb/triggered-deals', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/mlb/triggered-deals', isAdmin, async (req, res) => {
     try {
       const triggeredDealsData = await db.select({
         id: triggeredDeals.id,
@@ -1556,12 +1550,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(triggeredDealsData);
     } catch (error) {
-      console.error("Error fetching triggered deals:", error);
+      console.error("Error fetching triggered deals:", (error as Error).message);
       res.status(500).json({ error: "Failed to fetch triggered deals" });
     }
   });
 
-  app.get('/api/admin/mlb/analytics/:teamId', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/mlb/analytics/:teamId', isAdmin, async (req, res) => {
     try {
       const { teamId } = req.params;
       const days = parseInt(req.query.days as string) || 30;
@@ -1591,13 +1585,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(analytics);
     } catch (error) {
-      console.error("Error fetching team analytics:", error);
+      console.error("Error fetching team analytics:", (error as Error).message);
       res.status(500).json({ error: "Failed to fetch team analytics" });
     }
   });
 
   // Start the game processor on server startup
-  gameProcessor.start();
+  // gameProcessor.start(); // Temporarily disabled for testing
 
   const httpServer = createServer(app);
   return httpServer;

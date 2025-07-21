@@ -105,7 +105,7 @@ export class RealTimeDealMonitor extends EventEmitter {
       result.patternStats = dealPatternMatcher.getPatternStats();
 
     } catch (error) {
-      const errorMsg = `Deal discovery failed: ${error.message}`;
+      const errorMsg = `Deal discovery failed: ${error instanceof Error ? error.message : String(error)}`;
       console.error('❌', errorMsg);
       result.errors.push(errorMsg);
       this.stats.lastErrors.push(errorMsg);
@@ -131,7 +131,7 @@ export class RealTimeDealMonitor extends EventEmitter {
     isRunning: boolean;
     lastRunTime: Date | null;
     nextRunTime: Date | null;
-    stats: typeof this.stats;
+    stats: any;
   } {
     const nextRunTime = this.lastRunTime && this.isRunning 
       ? new Date(this.lastRunTime.getTime() + this.monitoringInterval)

@@ -122,7 +122,7 @@ export class EnhancedDealDiscoveryService {
         console.log(`   ✅ Found ${websiteDeals.length + socialDeals.length + apiDeals.length} NEW potential deals`);
         
       } catch (error) {
-        console.error(`   ❌ Error discovering deals for ${restaurant.name}:`, error.message);
+        console.error(`   ❌ Error discovering deals for ${restaurant.name}:`, (error as Error).message);
       }
     }
 
@@ -135,7 +135,7 @@ export class EnhancedDealDiscoveryService {
 
   private async scrapeRestaurantWebsite(restaurant: Restaurant, teams: Team[], dealPatterns: any[] = []): Promise<DiscoveredDeal[]> {
     const deals: DiscoveredDeal[] = [];
-    const restaurantConfig = this.restaurantSources[restaurant.name];
+    const restaurantConfig = this.restaurantSources[restaurant.name as keyof typeof this.restaurantSources];
     
     if (!restaurantConfig?.website) {
       console.log(`   ⚠️ No website configured for ${restaurant.name}`);
@@ -211,7 +211,7 @@ export class EnhancedDealDiscoveryService {
       deals.push(...imageDeals);
 
     } catch (error) {
-      console.error(`   ❌ Website scraping failed for ${restaurant.name}:`, error.message);
+      console.error(`   ❌ Website scraping failed for ${restaurant.name}:`, (error as Error).message);
     }
 
     return deals;
@@ -480,7 +480,7 @@ export class EnhancedDealDiscoveryService {
       terms.push(`${restaurantName} ${item} deal sports`);
     });
     
-    return [...new Set(terms)]; // Remove duplicates
+    return Array.from(new Set(terms)); // Remove duplicates
   }
 
   private generatePatternBasedDeals(restaurant: Restaurant, teams: Team[], pattern: any): DiscoveredDeal[] {
@@ -594,7 +594,7 @@ export class EnhancedDealDiscoveryService {
     const teamTerms = [
       team.name.toLowerCase(),
       team.abbreviation.toLowerCase(),
-      team.city.toLowerCase()
+      (team.city || '').toLowerCase()
     ];
     
     return teamTerms.some(term => text.includes(term));
@@ -673,7 +673,7 @@ export class EnhancedDealDiscoveryService {
     // Team mention strength
     if (text.includes(team.name.toLowerCase())) confidence += 0.2;
     if (text.includes(team.abbreviation.toLowerCase())) confidence += 0.15;
-    if (text.includes(team.city.toLowerCase())) confidence += 0.1;
+    if (text.includes((team.city || '').toLowerCase())) confidence += 0.1;
     
     // Promotional content strength
     if (text.includes('free')) confidence += 0.15;
@@ -682,10 +682,10 @@ export class EnhancedDealDiscoveryService {
     if (text.includes('when') || text.includes('if')) confidence += 0.1;
     
     // Restaurant-specific content
-    const restaurantConfig = this.restaurantSources[restaurant.name];
+    const restaurantConfig = this.restaurantSources[restaurant.name as keyof typeof this.restaurantSources];
     if (restaurantConfig) {
       const menuItems = restaurantConfig.commonDeals;
-      if (menuItems.some(item => text.includes(item))) confidence += 0.15;
+      if (menuItems.some((item: string) => text.includes(item))) confidence += 0.15;
     }
     
     // Source reliability

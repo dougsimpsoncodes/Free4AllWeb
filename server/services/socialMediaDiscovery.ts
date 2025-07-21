@@ -197,7 +197,7 @@ export class SocialMediaDiscoveryEngine {
   private extractKeywords(text: string): string[] {
     const keywords = text.toLowerCase()
       .match(/\b(promo|deal|free|discount|offer|special|win|game|dodgers|runs|strikeout|home|victory)\b/g) || [];
-    return [...new Set(keywords)]; // Remove duplicates
+    return Array.from(new Set(keywords)); // Remove duplicates
   }
 
   // Remove duplicates and rank by confidence

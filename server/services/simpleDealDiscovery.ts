@@ -277,7 +277,7 @@ export class SimpleDealDiscoveryService {
       // For now, return empty array - this is where real search results would be processed
       
     } catch (error) {
-      console.error(`❌ Error searching ${source.name}:`, error.message);
+      console.error(`❌ Error searching ${source.name}:`, error instanceof Error ? error.message : String(error));
     }
     
     return sites;

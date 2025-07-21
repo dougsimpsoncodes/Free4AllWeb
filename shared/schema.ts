@@ -36,6 +36,7 @@ export const users = pgTable("users", {
   city: varchar("city", { length: 100 }),
   zipCode: varchar("zip_code", { length: 10 }),
   phoneNumber: varchar("phone_number", { length: 20 }),
+  role: varchar("role", { length: 20 }).default("user"), // user, admin
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -65,7 +66,11 @@ export const teams = pgTable("teams", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_teams_is_active").on(table.isActive),
+  index("idx_teams_league_id").on(table.leagueId),
+  index("idx_teams_sport").on(table.sport),
+]);
 
 // Restaurant partners
 export const restaurants = pgTable("restaurants", {
@@ -77,7 +82,9 @@ export const restaurants = pgTable("restaurants", {
   playStoreUrl: varchar("play_store_url"),
   primaryColor: varchar("primary_color", { length: 7 }),
   isActive: boolean("is_active").default(true),
-});
+}, (table) => [
+  index("idx_restaurants_is_active").on(table.isActive),
+]);
 
 // Individual deal pages created from approved discovered sites
 export const dealPages = pgTable("deal_pages", {
@@ -136,7 +143,12 @@ export const games = pgTable("games", {
   isComplete: boolean("is_complete").default(false),
   gameStats: jsonb("game_stats"), // Store additional stats like strikeouts, steals, etc.
   externalId: varchar("external_id", { length: 50 }),
-});
+}, (table) => [
+  index("idx_games_team_id").on(table.teamId),
+  index("idx_games_game_date").on(table.gameDate),
+  index("idx_games_is_complete").on(table.isComplete),
+  index("idx_games_team_date").on(table.teamId, table.gameDate),
+]);
 
 // Triggered deals (when promotions are activated)
 export const triggeredDeals = pgTable("triggered_deals", {
@@ -147,7 +159,13 @@ export const triggeredDeals = pgTable("triggered_deals", {
   triggeredAt: timestamp("triggered_at").defaultNow(),
   expiresAt: timestamp("expires_at"),
   isActive: boolean("is_active").default(true),
-});
+}, (table) => [
+  index("idx_triggered_deals_is_active").on(table.isActive),
+  index("idx_triggered_deals_triggered_at").on(table.triggeredAt),
+  index("idx_triggered_deals_promotion_id").on(table.promotionId),
+  index("idx_triggered_deals_game_id").on(table.gameId),
+  index("idx_triggered_deals_active_triggered").on(table.isActive, table.triggeredAt),
+]);
 
 // User alert preferences
 export const alertPreferences = pgTable("alert_preferences", {

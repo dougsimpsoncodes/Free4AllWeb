@@ -35,7 +35,7 @@ function Router() {
         <Route path="/admin/migration" component={DealMigration} />
         <Route path="/deal-discovery" component={DealDiscovery} />
         <Route path="/analytics" component={GameAnalytics} />
-        <Route path="/admin/deal-template" component={DealTemplate} />
+        <Route path="/admin/deal-template" component={() => <DealTemplate />} />
         <Route path="/deal/:slug" component={DealPage} />
         <Route path="/notifications" component={NotificationsPage} />
         <Route path="/game-scheduling-test" component={GameSchedulingTest} />
