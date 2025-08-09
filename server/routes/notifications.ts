@@ -4,16 +4,13 @@ import { emailService } from "../services/emailService";
 import { isAuthenticated } from "../googleAuth";
 
 export function registerNotificationRoutes(app: Express) {
-  // Development auth bypass
-  const authMiddleware = process.env.NODE_ENV === 'development' ? (req: any, res: any, next: any) => {
-    req.user = { claims: { sub: 'dev-user-123' } };
-    next();
-  } : isAuthenticated;
+  // Use standard authentication middleware
+  const authMiddleware = isAuthenticated;
 
   // Get user's alert history
   app.get('/api/alert-history', authMiddleware, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const history = await storage.getAlertHistory(userId);
       res.json(history);
     } catch (error) {
@@ -25,7 +22,7 @@ export function registerNotificationRoutes(app: Express) {
   // Get notification statistics
   app.get('/api/notifications/stats', authMiddleware, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const history = await storage.getAlertHistory(userId);
       
       const stats = {
@@ -50,7 +47,7 @@ export function registerNotificationRoutes(app: Express) {
   // Send test notification
   app.post('/api/notifications/test', authMiddleware, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { type } = req.body;
       
       // Get or create a mock user for development
@@ -94,7 +91,7 @@ export function registerNotificationRoutes(app: Express) {
   // Update notification preferences
   app.put('/api/notifications/preferences', authMiddleware, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { emailEnabled, smsEnabled, alertTiming } = req.body;
       
       // Update all user's alert preferences
@@ -126,7 +123,7 @@ export function registerNotificationRoutes(app: Express) {
   // Get unread notifications count
   app.get('/api/notifications/unread', authMiddleware, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const unreadCount = await storage.getUnreadNotificationsCount(userId);
       res.json({ count: unreadCount });
     } catch (error) {

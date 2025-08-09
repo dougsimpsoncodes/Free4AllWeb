@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Free4AllWeb Admin - Simple Interface</title>
+    <style>
+        body { font-family: Arial; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        .button:hover { background: #0056b3; }
+        .success { color: green; }
+        .error { color: red; }
+        #results { margin-top: 20px; }
+        .deal-item { background: #f8f9fa; padding: 15px; margin: 10px 0; border-left: 4px solid #007bff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Free4AllWeb Admin Interface</h1>
+        <p>Simple admin interface to test all functionality without React</p>
+        
+        <div class="card">
+            <h2>🤖 Agent Consultancy System</h2>
+            <p>Test the complete agent-MCP integration system</p>
+            <button class="button" onclick="simpleTest()">🧪 Simple API Test</button>
+            <button class="button" onclick="testAgentStatus()">📊 Check Agent Status</button>
+            <button class="button" onclick="triggerGameWorkflow()">🏀 Trigger Game Workflow</button>
+            <button class="button" onclick="triggerManualDiscovery()">🔍 Manual Deal Discovery</button>
+            <button class="button" onclick="checkSystemHealth()">❤️ System Health</button>
+            <div id="agent-results"></div>
+        </div>
+        
+        <div class="card">
+            <h2>🔍 Deal Discovery System</h2>
+            <button class="button" onclick="triggerDiscovery()">Trigger Deal Discovery</button>
+            <button class="button" onclick="getPendingDeals()">Get Pending Deals</button>
+            <button class="button" onclick="getDiscoveredSites()">View All Discovered Sites</button>
+        </div>
+        
+        <div class="card">
+            <h2>⚾ Game Service</h2>
+            <button class="button" onclick="getGameStatus()">Game Processor Status</button>
+            <button class="button" onclick="processGames()">Process Games Manually</button>
+            <button class="button" onclick="getMLBTeams()">Get MLB Teams</button>
+        </div>
+        
+        <div class="card">
+            <h2>📧 Notifications</h2>
+            <button class="button" onclick="testPreGame()">Test Pre-Game Alert</button>
+            <button class="button" onclick="testPostGame()">Test Post-Game Alert</button>
+            <button class="button" onclick="getSchedulingStats()">Scheduling Stats</button>
+        </div>
+        
+        <div class="card">
+            <h2>📊 Analytics</h2>
+            <button class="button" onclick="getAnalytics()">System Analytics</button>
+            <button class="button" onclick="getDealMonitorStatus()">Deal Monitor Status</button>
+        </div>
+        
+        <div id="results" class="card">
+            <h3>Results:</h3>
+            <div id="output">Click any button above to test the system...</div>
+        </div>
+    </div>
+
+    <script>
+        function log(message, isError = false) {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = isError ? 'error' : 'success';
+            output.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+        }
+
+        async function apiCall(method, url, body = null) {
+            try {
+                const options = { method };
+                if (body) {
+                    options.body = JSON.stringify(body);
+                    options.headers = { 'Content-Type': 'application/json' };
+                }
+                
+                const response = await fetch(url, options);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${data.message || 'Unknown error'}`);
+                }
+                
+                return data;
+            } catch (error) {
+                throw new Error(`API Error: ${error.message}`);
+            }
+        }
+
+        // Deal Discovery Functions
+        async function triggerDiscovery() {
+            log('🔍 Triggering deal discovery...');
+            try {
+                const result = await apiCall('POST', '/api/admin/discovery/run');
+                log(`✅ Discovery completed! Found ${result.sitesDiscovered || 0} sites`);
+                if (result.summary) {
+                    log(`📊 Summary: ${JSON.stringify(result.summary, null, 2)}`);
+                }
+            } catch (error) {
+                log(`❌ Discovery failed: ${error.message}`, true);
+            }
+        }
+
+        async function getPendingDeals() {
+            log('📋 Getting pending deals...');
+            try {
+                const response = await apiCall('GET', '/api/admin/discovery/pending');
+                const deals = response.sites || [];
+                log(`✅ Found ${deals.length} pending deals`);
+                deals.forEach((deal, index) => {
+                    log(`📄 Deal ${index + 1}: ${deal.url} (Confidence: ${deal.confidence})`);
+                });
+            } catch (error) {
+                log(`❌ Failed to get pending deals: ${error.message}`, true);
+            }
+        }
+
+        async function getDiscoveredSites() {
+            log('🌐 Getting all discovered sites...');
+            try {
+                const response = await apiCall('GET', '/api/admin/discovery/sites');
+                const sites = response.sites || [];
+                log(`✅ Found ${sites.length} total discovered sites`);
+                sites.slice(0, 5).forEach((site, index) => {
+                    log(`🔗 Site ${index + 1}: ${site.url} - Status: ${site.status}`);
+                });
+                if (sites.length > 5) {
+                    log(`... and ${sites.length - 5} more sites`);
+                }
+            } catch (error) {
+                log(`❌ Failed to get sites: ${error.message}`, true);
+            }
+        }
+
+        // Game Service Functions
+        async function getGameStatus() {
+            log('⚾ Getting game processor status...');
+            try {
+                const status = await apiCall('GET', '/api/mlb/games/status');
+                log(`✅ Game Processor - Running: ${status.isRunning}, Processing: ${status.isProcessing}`);
+                log(`📅 Last Check: ${new Date(status.lastCheck).toLocaleString()}`);
+            } catch (error) {
+                log(`❌ Failed to get game status: ${error.message}`, true);
+            }
+        }
+
+        async function processGames() {
+            log('🎮 Processing games manually...');
+            try {
+                const result = await apiCall('POST', '/api/mlb/games/process');
+                log(`✅ ${result.message}`);
+            } catch (error) {
+                log(`❌ Game processing failed: ${error.message}`, true);
+            }
+        }
+
+        async function getMLBTeams() {
+            log('🏟️ Getting MLB teams...');
+            try {
+                const teams = await apiCall('GET', '/api/mlb/teams');
+                log(`✅ Found ${teams.length} MLB teams`);
+                teams.slice(0, 5).forEach((team, index) => {
+                    log(`⚾ ${team.name} (${team.abbreviation}) - ${team.locationName}`);
+                });
+                if (teams.length > 5) {
+                    log(`... and ${teams.length - 5} more teams`);
+                }
+            } catch (error) {
+                log(`❌ Failed to get MLB teams: ${error.message}`, true);
+            }
+        }
+
+        // Notification Functions
+        async function testPreGame() {
+            log('📧 Testing pre-game alert...');
+            try {
+                const result = await apiCall('POST', '/api/admin/game-scheduling/test-pregame');
+                if (result.success) {
+                    log('✅ Pre-game alert sent successfully!');
+                } else {
+                    log(`❌ Pre-game alert failed: ${result.error}`, true);
+                }
+            } catch (error) {
+                log(`❌ Pre-game test failed: ${error.message}`, true);
+            }
+        }
+
+        async function testPostGame() {
+            log('🎉 Testing post-game alert...');
+            try {
+                const result = await apiCall('POST', '/api/admin/game-scheduling/test-postgame');
+                if (result.success) {
+                    log('✅ Post-game alert sent successfully!');
+                } else {
+                    log(`❌ Post-game alert failed: ${result.error}`, true);
+                }
+            } catch (error) {
+                log(`❌ Post-game test failed: ${error.message}`, true);
+            }
+        }
+
+        async function getSchedulingStats() {
+            log('📊 Getting scheduling statistics...');
+            try {
+                const stats = await apiCall('GET', '/api/admin/game-scheduling/stats');
+                log(`✅ Scheduling Stats:`);
+                log(`📧 Total Alerts: ${stats.stats.totalAlerts}`);
+                log(`🎯 Pre-Game: ${stats.stats.preGameAlerts}, Post-Game: ${stats.stats.postGameAlerts}`);
+                log(`📈 Success Rate: ${stats.stats.successRate}%`);
+            } catch (error) {
+                log(`❌ Failed to get scheduling stats: ${error.message}`, true);
+            }
+        }
+
+        // Agent Consultancy Functions
+        async function simpleTest() {
+            const resultsDiv = document.getElementById('agent-results');
+            resultsDiv.innerHTML = '<p>🧪 Running simple API test...</p>';
+            
+            try {
+                // Test basic fetch
+                console.log('Testing basic fetch...');
+                const response = await fetch('/api/agents/status');
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                const data = await response.text();
+                console.log('Response data (first 200 chars):', data.substring(0, 200));
+                
+                if (response.ok) {
+                    const jsonData = JSON.parse(data);
+                    resultsDiv.innerHTML = `
+                        <div class="success">
+                            <h3>✅ Simple API Test Passed!</h3>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <p><strong>Data Type:</strong> ${typeof jsonData}</p>
+                            <p><strong>Has Data:</strong> ${jsonData.data ? 'Yes' : 'No'}</p>
+                            <p><strong>Agents:</strong> ${jsonData.data?.totalAgents || 'Unknown'}</p>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="error">
+                            <h3>❌ API Test Failed</h3>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <p><strong>Response:</strong> ${data.substring(0, 500)}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Simple test error:', error);
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Simple Test Failed</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p><strong>Stack:</strong> ${error.stack?.substring(0, 300) || 'No stack trace'}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testAgentStatus() {
+            const resultsDiv = document.getElementById('agent-results');
+            resultsDiv.innerHTML = '<p>🔍 Checking agent system status...</p>';
+            
+            try {
+                console.log('Testing agent status...');
+                const status = await apiCall('GET', '/api/agents/status');
+                console.log('Agent status response:', status);
+                resultsDiv.innerHTML = `
+                    <div class="success">
+                        <h3>✅ Agent System Status</h3>
+                        <p><strong>Total Agents:</strong> ${status.data.totalAgents}</p>
+                        <p><strong>MCP Servers Connected:</strong> ${status.data.mcpServersConnected}/6</p>
+                        <p><strong>Active Workflows:</strong> ${status.data.activeWorkflows}</p>
+                        <p><strong>System Health:</strong> ${status.data.mcpServersConnected === 6 ? '🟢 Healthy' : '🟡 Degraded'}</p>
+                        <p><strong>Last Update:</strong> ${new Date(status.data.lastUpdate).toLocaleString()}</p>
+                        <details>
+                            <summary>Agent Details</summary>
+                            ${status.data.agentStatuses.map(agent => `
+                                <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                                    <strong>${agent.agentId}</strong> (${agent.priority} priority)
+                                    <br>MCP Servers: ${agent.mcpServers.map(s => `${s.serverId}:${s.status}`).join(', ')}
+                                    <br>Capabilities: ${agent.capabilities.slice(0,3).join(', ')}${agent.capabilities.length > 3 ? ` +${agent.capabilities.length-3} more` : ''}
+                                </div>
+                            `).join('')}
+                        </details>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Agent status error:', error);
+                resultsDiv.innerHTML = `<div class="error">❌ Failed to get agent status: ${error.message}</div>`;
+            }
+        }
+
+        async function triggerGameWorkflow() {
+            const resultsDiv = document.getElementById('agent-results');
+            resultsDiv.innerHTML = '<p>🏀 Triggering game workflow...</p>';
+            
+            try {
+                const result = await apiCall('POST', '/api/agents/workflows/game-trigger', {
+                    gameId: 'demo_game_' + Date.now(),
+                    teamId: 'dodgers',
+                    eventType: 'win',
+                    score: { home: 8, away: 3 }
+                });
+                
+                resultsDiv.innerHTML = `
+                    <div class="success">
+                        <h3>✅ Game Workflow Completed!</h3>
+                        <p><strong>Workflow ID:</strong> ${result.data.workflowId}</p>
+                        <p><strong>Results:</strong></p>
+                        <ul>
+                            <li><strong>Sports Data Agent:</strong> ${result.data.results['sports-data']?.length || 0} operations completed</li>
+                            <li><strong>Deal Discovery Agent:</strong> Found ${result.data.results['deal-discovery']?.[0]?.posts_found || 0} Reddit posts + ${result.data.results['deal-discovery']?.[1]?.deals_scraped || 0} scraped deals</li>
+                            <li><strong>Admin Workflow Agent:</strong> ${result.data.results['admin-workflow']?.[0]?.rows_inserted || 0} deals queued for approval</li>
+                            <li><strong>Notification Orchestrator:</strong> Sent ${result.data.results['notification-orchestrator']?.[1]?.messages_sent || 0} notifications (${(result.data.results['notification-orchestrator']?.[1]?.delivery_rate * 100 || 0).toFixed(1)}% delivery rate)</li>
+                        </ul>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ Game workflow failed: ${error.message}</div>`;
+            }
+        }
+
+        async function triggerManualDiscovery() {
+            const resultsDiv = document.getElementById('agent-results');
+            resultsDiv.innerHTML = '<p>🔍 Starting manual deal discovery...</p>';
+            
+            try {
+                const result = await apiCall('POST', '/api/agents/workflows/manual-discovery', {
+                    location: 'Los Angeles',
+                    categories: ['restaurants', 'food', 'pizza']
+                });
+                
+                resultsDiv.innerHTML = `
+                    <div class="success">
+                        <h3>✅ Manual Discovery Started!</h3>
+                        <p><strong>Workflow ID:</strong> ${result.data.workflowId}</p>
+                        <p><strong>Message:</strong> ${result.data.message}</p>
+                        <p><strong>Estimated Completion:</strong> ${result.data.estimatedCompletion}</p>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ Manual discovery failed: ${error.message}</div>`;
+            }
+        }
+
+        async function checkSystemHealth() {
+            const resultsDiv = document.getElementById('agent-results');
+            resultsDiv.innerHTML = '<p>❤️ Checking system health...</p>';
+            
+            try {
+                const health = await apiCall('GET', '/api/agents/health');
+                
+                resultsDiv.innerHTML = `
+                    <div class="success">
+                        <h3>❤️ System Health Check</h3>
+                        <p><strong>Overall Status:</strong> ${health.status === 'healthy' ? '🟢 Healthy' : '🟡 ' + health.status}</p>
+                        <p><strong>Agents:</strong> ${health.agents.active}/${health.agents.total} Active</p>
+                        <p><strong>MCP Servers:</strong> ${health.mcpServers.connected}/${health.mcpServers.expected} Connected</p>
+                        <p><strong>Active Workflows:</strong> ${health.workflows.active}</p>
+                        <p><strong>Last Check:</strong> ${new Date(health.timestamp).toLocaleString()}</p>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ Health check failed: ${error.message}</div>`;
+            }
+        }
+
+        // Analytics Functions
+        async function getAnalytics() {
+            log('📈 Getting system analytics...');
+            try {
+                const analytics = await apiCall('GET', '/api/admin/analytics');
+                log(`✅ System Analytics:`);
+                log(`🎯 Active Deals: ${analytics.activeDeals}`);
+                log(`👥 Total Subscribers: ${analytics.totalSubscribers}`);
+            } catch (error) {
+                log(`❌ Failed to get analytics: ${error.message}`, true);
+            }
+        }
+
+        async function getDealMonitorStatus() {
+            log('🔍 Getting deal monitor status...');
+            try {
+                const status = await apiCall('GET', '/api/admin/deal-monitor/status');
+                log(`✅ Deal Monitor Status:`);
+                log(`🟢 Running: ${status.isRunning}`);
+                log(`📊 Patterns Checked: ${status.patternStats?.totalPatterns || 0}`);
+                log(`🎯 Average Match: ${status.patternStats?.averageMatch || 0}%`);
+            } catch (error) {
+                log(`❌ Failed to get deal monitor status: ${error.message}`, true);
+            }
+        }
+
+        // Initialize
+        log('🚀 Free4AllWeb Admin Interface Ready!');
+        log('Click any button above to test the system functionality.');
+    </script>
+</body>
+</html>

@@ -8,6 +8,8 @@ import Landing from "@/pages/landing";
 import Home from "@/pages/home";
 import Admin from "@/pages/admin";
 import AdminDashboard from "@/pages/AdminDashboard";
+import UserAnalytics from "@/pages/UserAnalytics";
+import AgentDashboard from "@/pages/AgentDashboard";
 import DealMigration from "@/pages/DealMigration";
 import DealDiscovery from "@/pages/DealDiscovery";
 import GameAnalytics from "@/pages/GameAnalytics";
@@ -18,67 +20,78 @@ import NotificationsPage from "@/pages/notifications";
 import GameSchedulingTest from "@/pages/GameSchedulingTest";
 import DealVerificationTestPage from "@/pages/deal-verification-test";
 import NotFound from "@/pages/not-found";
+import Test from "@/pages/test";
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  try {
+    const { isAuthenticated, isLoading } = useAuth();
 
-  // Development mode - full access without authentication
-  const isDevelopment = import.meta.env.DEV || window.location.hostname.includes('replit');
+    // Development mode - full access without authentication
+    const isDevelopment = import.meta.env.DEV || window.location.hostname.includes('replit');
 
-  if (isDevelopment) {
-    return (
-      <Switch>
-        <Route path="/" component={Landing} />
-        <Route path="/home" component={Home} />
-        <Route path="/admin/dashboard" component={AdminDashboard} />
-        <Route path="/admin" component={Admin} />
-        <Route path="/admin/migration" component={DealMigration} />
-        <Route path="/deal-discovery" component={DealDiscovery} />
-        <Route path="/analytics" component={GameAnalytics} />
-        <Route path="/admin/deal-template" component={() => <DealTemplate />} />
-        <Route path="/deal/:slug" component={DealPage} />
-        <Route path="/notifications" component={NotificationsPage} />
-        <Route path="/game-scheduling-test" component={GameSchedulingTest} />
-        <Route path="/deal-verification-test" component={DealVerificationTestPage} />
-        <Route path="/signup" component={Signup} />
-        <Route component={NotFound} />
-      </Switch>
-    );
-  }
-
-  return (
-    <Switch>
-      {/* Production routes with authentication */}
-      {isLoading || !isAuthenticated ? (
-        <>
+    if (isDevelopment) {
+      return (
+        <Switch>
+          <Route path="/test" component={Test} />
           <Route path="/" component={Landing} />
-          <Route path="/signup" component={Signup} />
-        </>
-      ) : (
-        <>
-          <Route path="/" component={Home} />
-          <Route path="/admin/dashboard" component={AdminDashboard} />
+          <Route path="/home" component={Home} />
           <Route path="/admin" component={Admin} />
+          <Route path="/admin/analytics" component={UserAnalytics} />
           <Route path="/admin/migration" component={DealMigration} />
+          <Route path="/admin/agents" component={AgentDashboard} />
           <Route path="/deal-discovery" component={DealDiscovery} />
           <Route path="/analytics" component={GameAnalytics} />
+          <Route path="/admin/deal-template" component={() => <DealTemplate />} />
+          <Route path="/deal/:slug" component={DealPage} />
           <Route path="/notifications" component={NotificationsPage} />
           <Route path="/game-scheduling-test" component={GameSchedulingTest} />
           <Route path="/deal-verification-test" component={DealVerificationTestPage} />
           <Route path="/signup" component={Signup} />
-        </>
-      )}
-      <Route component={NotFound} />
-    </Switch>
-  );
+          <Route component={NotFound} />
+        </Switch>
+      );
+    }
+
+    return (
+      <Switch>
+        {/* Production routes with authentication */}
+        <Route path="/test" component={Test} />
+        {isLoading || !isAuthenticated ? (
+          <>
+            <Route path="/" component={Landing} />
+            <Route path="/signup" component={Signup} />
+          </>
+        ) : (
+          <>
+            <Route path="/" component={Home} />
+            <Route path="/admin" component={Admin} />
+            <Route path="/admin/analytics" component={UserAnalytics} />
+            <Route path="/admin/migration" component={DealMigration} />
+            <Route path="/admin/agents" component={AgentDashboard} />
+            <Route path="/deal-discovery" component={DealDiscovery} />
+            <Route path="/analytics" component={GameAnalytics} />
+            <Route path="/notifications" component={NotificationsPage} />
+            <Route path="/game-scheduling-test" component={GameSchedulingTest} />
+            <Route path="/deal-verification-test" component={DealVerificationTestPage} />
+            <Route path="/signup" component={Signup} />
+          </>
+        )}
+        <Route component={NotFound} />
+      </Switch>
+    );
+  } catch (error) {
+    console.error("Router error:", error);
+    // Fallback to just the Landing component if there's an error
+    return <Landing />;
+  }
 }
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
         <Router />
+        <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
   );

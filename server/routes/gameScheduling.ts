@@ -2,10 +2,11 @@ import type { Express } from "express";
 import { gameSchedulingService } from "../services/gameSchedulingService";
 import { emailService } from "../services/emailService";
 import { storage } from "../storage";
+import { isAdmin } from "../googleAuth";
 
 export function registerGameSchedulingRoutes(app: Express) {
   // Test pre-game alert
-  app.post("/api/admin/game-scheduling/test-pregame", async (req, res) => {
+  app.post("/api/admin/game-scheduling/test-pregame", isAdmin, async (req, res) => {
     try {
       const testGameData = {
         gameId: "test-game-001",
@@ -45,7 +46,7 @@ export function registerGameSchedulingRoutes(app: Express) {
   });
 
   // Test post-game alert
-  app.post("/api/admin/game-scheduling/test-postgame", async (req, res) => {
+  app.post("/api/admin/game-scheduling/test-postgame", isAdmin, async (req, res) => {
     try {
       const testGameData = {
         gameId: "test-game-002",
@@ -87,7 +88,7 @@ export function registerGameSchedulingRoutes(app: Express) {
   });
 
   // Get upcoming scheduled games
-  app.get("/api/admin/game-scheduling/upcoming", async (req, res) => {
+  app.get("/api/admin/game-scheduling/upcoming", isAdmin, async (req, res) => {
     try {
       const days = parseInt(req.query.days as string) || 7;
       const upcomingGames = await storage.getUpcomingGames(days);
@@ -104,7 +105,7 @@ export function registerGameSchedulingRoutes(app: Express) {
   });
 
   // Manually schedule alerts for a specific game
-  app.post("/api/admin/game-scheduling/schedule/:gameId", async (req, res) => {
+  app.post("/api/admin/game-scheduling/schedule/:gameId", isAdmin, async (req, res) => {
     try {
       const { gameId } = req.params;
       const gameData = req.body;
@@ -132,7 +133,7 @@ export function registerGameSchedulingRoutes(app: Express) {
   });
 
   // Get game scheduling statistics
-  app.get("/api/admin/game-scheduling/stats", async (req, res) => {
+  app.get("/api/admin/game-scheduling/stats", isAdmin, async (req, res) => {
     try {
       // Get alert history for scheduling statistics
       const alertHistory = await storage.getAlertHistory();
@@ -157,7 +158,7 @@ export function registerGameSchedulingRoutes(app: Express) {
   });
 
   // Initialize/reinitialize scheduled games
-  app.post("/api/admin/game-scheduling/initialize", async (req, res) => {
+  app.post("/api/admin/game-scheduling/initialize", isAdmin, async (req, res) => {
     try {
       await gameSchedulingService.initializeScheduledGames();
       

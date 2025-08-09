@@ -26,6 +26,19 @@ export interface SearchResult {
 export class DealDiscoveryEngine {
   private activeSources: DiscoverySource[] = [];
   private activeSearchTerms: SearchTerm[] = [];
+  
+  // Fine-tuning parameters for precision control - ADMIN REVIEW ONLY
+  private readonly CONFIDENCE_THRESHOLDS = {
+    MINIMUM_SAVE: 0.9,      // Only save deals with 90%+ confidence - admin review ready
+    HIGH_QUALITY: 0.95,     // High quality at 95%+  
+    PERFECT_MATCH: 1.0      // Perfect matches at 100%
+  };
+  
+  private readonly DISCOVERY_LIMITS = {
+    MAX_RESULTS_PER_TERM: 5,    // Limit to top 5 per search term
+    MAX_DAILY_DEALS: 20,        // Maximum 20 deals per day (realistic for LA)
+    SEARCH_TERMS_ACTIVE: 8      // Use only top 8 most successful terms
+  };
 
   async initialize(): Promise<void> {
     console.log('🔧 Initializing Deal Discovery Engine...');
@@ -388,40 +401,132 @@ export class DealDiscoveryEngine {
   private calculateConfidence(content: string, searchTerm: string): number {
     const lowerContent = content.toLowerCase();
     const lowerTerm = searchTerm.toLowerCase();
+    const originalContent = content;
     
+    // STRICT FILTERING: Start with 0, must earn confidence through specific patterns
     let score = 0;
     
-    // HIGH PRIORITY: Team-specific matches (LA Dodgers focus)
-    const teamKeywords = ['dodgers', 'dodger', 'la dodgers', 'los angeles dodgers'];
-    const hasTeam = teamKeywords.some(team => lowerContent.includes(team));
-    if (hasTeam) score += 0.4; // Major boost for team relevance
+    // === TIER 1: PERFECT MATCHES (90-100% confidence) ===
     
-    // HIGH PRIORITY: Restaurant chain matches
+    // Pattern 1: Daily deal roundups (highest quality)
+    const dailyDealPatterns = [
+      /\d{1,2}\/\d{1,2}\/\d{4}\s+mlb\s+free\s+food\s+deals/i,
+      /today's\s+sports.*food\s+deals/i,
+      /psa.*sports.*food.*deals/i,
+      /daily\s+(sports|mlb|baseball).*deals/i
+    ];
+    if (dailyDealPatterns.some(pattern => pattern.test(originalContent))) {
+      score = 1.0; // Perfect confidence for curated deal lists
+      console.log(`   🎯 TIER 1: Daily deal roundup detected - 100% confidence`);
+      return score;
+    }
+    
+    // Pattern 2: Specific team + restaurant + sports trigger
+    const teamKeywords = ['dodgers', 'dodger', 'la dodgers', 'los angeles dodgers', 'angels', 'la angels'];
     const restaurantKeywords = ['mcdonalds', 'mcdonald\'s', 'panda express', 'jack in the box', 'del taco', 'ampm', 'subway', 'taco bell'];
+    const sportsTriggersExact = ['score', 'scores', 'runs', 'home run', 'strikeout', 'strikeouts', 'win', 'wins', 'victory'];
+    
+    const hasTeam = teamKeywords.some(team => lowerContent.includes(team));
     const hasRestaurant = restaurantKeywords.some(restaurant => lowerContent.includes(restaurant));
-    if (hasRestaurant) score += 0.3; // Major boost for restaurant relevance
+    const hasSportsTrigger = sportsTriggersExact.some(trigger => lowerContent.includes(trigger));
+    const hasFreeWord = lowerContent.includes('free');
     
-    // MEDIUM PRIORITY: Sports-specific promotional triggers
-    const sportsKeywords = ['win', 'wins', 'home win', 'victory', 'game', 'baseball', 'mlb', 'runs', 'strikeouts'];
-    const hasSports = sportsKeywords.some(sport => lowerContent.includes(sport));
-    if (hasSports) score += 0.2;
-    
-    // MEDIUM PRIORITY: Deal-related keywords
-    const dealKeywords = ['free', 'deal', 'promotion', 'discount', 'offer', 'special', 'promo'];
-    const foundDealWords = dealKeywords.filter(keyword => lowerContent.includes(keyword));
-    score += (foundDealWords.length / dealKeywords.length) * 0.1;
-    
-    // BONUS: Perfect combination (Team + Restaurant + Deal)
-    if (hasTeam && hasRestaurant && foundDealWords.length > 0) {
-      score += 0.2; // Bonus for perfect match
+    // Perfect combination: Team + Restaurant + Sports Trigger + Free
+    if (hasTeam && hasRestaurant && hasSportsTrigger && hasFreeWord) {
+      score = 0.95; // Near-perfect for specific deals
+      console.log(`   🎯 TIER 1: Perfect sports deal combo detected - 95% confidence`);
+      return score;
     }
     
-    // PENALTY: Generic deals without sports relevance
-    if (!hasTeam && !hasSports && (lowerContent.includes('national') || lowerContent.includes('generic'))) {
-      score *= 0.5; // Reduce confidence for generic deals
+    // === TIER 2: ADMIN REVIEW READY (90%+ confidence) ===
+    
+    // Pattern 3: Team + Restaurant + Promotional details
+    if (hasTeam && hasRestaurant && (hasFreeWord || lowerContent.includes('deal'))) {
+      // Additional validation for genuine promotional content
+      const promotionalIndicators = [
+        /with\s+purchase/i,
+        /minimum\s+purchase/i,
+        /\$\d+\s+minimum/i,
+        /code\s+[A-Z0-9]+/i,
+        /valid\s+(today|through|until)/i,
+        /app\s+only/i,
+        /mobile\s+offer/i,
+        /free\s+[a-z\s]+\s+from\s+[a-z\s]+/i
+      ];
+      
+      if (promotionalIndicators.some(pattern => pattern.test(originalContent))) {
+        score = 0.95;
+        console.log(`   🎯 TIER 2: Complete promotional deal - 95% confidence`);
+        return score;
+      }
+      
+      // Must have both team AND restaurant to get 90%
+      score = 0.90;
+      console.log(`   🎯 TIER 2: Team restaurant combination - 90% confidence`);
+      return score;
     }
     
-    return Math.min(score, 1.0);
+    // === STRICT REJECTION FILTERS ===
+    
+    // REJECT: Personal posts, requests for help
+    const personalPostPatterns = [
+      /i\s+(need|want|am|work)/i,
+      /anyone\s+(have|know)/i,
+      /looking\s+for/i,
+      /can\s+someone/i,
+      /help\s+me/i,
+      /\d+\s+(male|female|f|m)\b/i,
+      /trying\s+to\s+meet/i,
+      /pm\s+me/i,
+      /chat\s+with/i
+    ];
+    
+    if (personalPostPatterns.some(pattern => pattern.test(originalContent))) {
+      console.log(`   ❌ REJECTED: Personal post detected`);
+      return 0;
+    }
+    
+    // REJECT: Generic restaurant deals without sports context
+    if (hasRestaurant && !hasTeam && !hasSportsTrigger) {
+      console.log(`   ❌ REJECTED: Generic restaurant deal without sports context`);
+      return 0;
+    }
+    
+    // REJECT: Irrelevant food discussions
+    const irrelevantPatterns = [
+      /i\s+can't\s+eat/i,
+      /accidentally\s+ordered/i,
+      /celebrates.*anniversary/i,
+      /sauce.*goes.*well/i,
+      /recipe/i,
+      /ingredients/i,
+      /nutrition/i,
+      /calories/i,
+      /taste/i,
+      /flavor/i
+    ];
+    
+    if (irrelevantPatterns.some(pattern => pattern.test(originalContent))) {
+      console.log(`   ❌ REJECTED: Irrelevant food discussion`);
+      return 0;
+    }
+    
+    // REJECT: Old deals (anything mentioning past years)
+    const currentYear = new Date().getFullYear();
+    const yearMentions = originalContent.match(/\b20\d{2}\b/g);
+    if (yearMentions) {
+      for (const yearStr of yearMentions) {
+        const year = parseInt(yearStr);
+        if (year < currentYear) {
+          console.log(`   ❌ REJECTED: Old deal from ${year}`);
+          return 0;
+        }
+      }
+    }
+    
+    // If we get here, it doesn't match our criteria
+    console.log(`   ❌ REJECTED: No qualifying patterns found`);
+    return 0;
   }
 
   private isContentTooOld(content: string, rawData: any): boolean {
@@ -512,13 +617,20 @@ export class DealDiscoveryEngine {
       'dodgers del taco'
     ];
     
-    // Use top search terms with active sources + social media terms
-    const topTerms = this.activeSearchTerms.slice(0, 8); // Reduce API terms to make room for social
-    const combinedTerms = [...topTerms, ...socialMediaTerms.map(term => ({
+    // Use only the most effective search terms for precision
+    const topTerms = this.activeSearchTerms.slice(0, this.DISCOVERY_LIMITS.SEARCH_TERMS_ACTIVE);
+    const precisionSocialTerms = [
+      'dodgers panda express free',
+      'dodgers mcdonalds deal',
+      'dodgers home run free food',
+      'la dodgers win promotion'
+    ];
+    
+    const combinedTerms = [...topTerms, ...precisionSocialTerms.map(term => ({
       id: 0,
       term,
-      category: 'social_media',
-      successRate: '85%',
+      category: 'precision_social',
+      successRate: '95%',
       usageCount: 0,
       isActive: true
     }))];
@@ -535,20 +647,42 @@ export class DealDiscoveryEngine {
       // Search News API (free tier)
       const newsResults = await this.searchNewsAPI(searchTerm.term);
       
-      // Combine and process results
+      // Combine and process results with quality filtering
       const allSearchResults = [...redditResults, ...googleResults, ...newsResults];
       
+      // Sort by confidence (highest first) and limit results per term
+      const qualityResults = allSearchResults
+        .filter(result => result.confidence >= this.CONFIDENCE_THRESHOLDS.MINIMUM_SAVE)
+        .sort((a, b) => b.confidence - a.confidence)
+        .slice(0, this.DISCOVERY_LIMITS.MAX_RESULTS_PER_TERM);
+      
+      console.log(`   📊 Found ${allSearchResults.length} total results, saving top ${qualityResults.length} with ≥${this.CONFIDENCE_THRESHOLDS.MINIMUM_SAVE * 100}% confidence`);
+      
       // Convert to DiscoveredSite format and save
-      for (const result of allSearchResults) {
-        if (result.confidence > 0.3) { // Only save promising results
-          // Check if content is too old (seasonal deals expire after 1 year)
-          if (this.isContentTooOld(result.content, result.rawData)) {
-            console.log(`   ⚠️ Skipping old content: ${result.title}`);
-            continue;
-          }
-          
-          const discoveredSite = await this.saveDiscoveredSite(result, searchTerm);
-          allResults.push(discoveredSite);
+      for (const result of qualityResults) {
+        // Check if content is too old (seasonal deals expire after 1 year)
+        if (this.isContentTooOld(result.content, result.rawData)) {
+          console.log(`   ⚠️ Skipping old content: ${result.title}`);
+          continue;
+        }
+        
+        // Check for duplicates by URL
+        const existingSite = allResults.find(existing => existing.url === result.url);
+        if (existingSite) {
+          console.log(`   🔄 Skipping duplicate: ${result.title}`);
+          continue;
+        }
+        
+        const discoveredSite = await this.saveDiscoveredSite(result, searchTerm);
+        allResults.push(discoveredSite);
+        
+        // Log the quality tier for this result
+        if (result.confidence >= this.CONFIDENCE_THRESHOLDS.PERFECT_MATCH) {
+          console.log(`   🏆 PERFECT MATCH saved: ${result.title} (${(result.confidence * 100).toFixed(0)}%)`);
+        } else if (result.confidence >= this.CONFIDENCE_THRESHOLDS.HIGH_QUALITY) {
+          console.log(`   ⭐ HIGH QUALITY saved: ${result.title} (${(result.confidence * 100).toFixed(0)}%)`);
+        } else {
+          console.log(`   ✓ QUALITY saved: ${result.title} (${(result.confidence * 100).toFixed(0)}%)`);
         }
       }
       

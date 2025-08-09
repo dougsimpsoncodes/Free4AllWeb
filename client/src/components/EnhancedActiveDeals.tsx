@@ -1,489 +1,284 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Copy, ExternalLink, Clock, MapPin, Smartphone, Globe, CheckCircle, Zap, Star, Timer, Gift } from "lucide-react";
+import { ExternalLink, Clock, Zap, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import RestaurantLogo from "./RestaurantLogo";
 
-interface DealStatus {
+interface DiscoveredDeal {
   id: number;
-  restaurant: string;
-  restaurantLogo: string;
-  team: string;
-  sport: string;
-  triggerConditions: string[];
-  conditionsMet: boolean[];
-  redemptionMethod: string;
-  promoCode?: string;
-  isActive: boolean;
-  expiresAt?: string;
-  lastTriggeredGame?: string;
-  instructions: string;
-  appStoreUrl?: string;
-  playStoreUrl?: string;
-  websiteUrl?: string;
-  participatingLocations: string;
-  appDeepLink?: string; // Deep link for mobile apps
-  dealDescription: string;
-  foodItem: string;
-  dealValue: string;
-  dealImage?: string;
+  url: string;
+  title: string;
+  content: string;
+  confidence: string;
+  status: string;
+  foundAt: string;
+  sourceId?: number;
+  restaurantDetected?: string;
+  teamDetected?: string;
+  dealExtracted?: string;
+  promoCodeDetected?: string;
 }
 
 export default function EnhancedActiveDeals() {
   const { toast } = useToast();
-  const [selectedDeal, setSelectedDeal] = useState<DealStatus | null>(null);
+  const [filterConfidence, setFilterConfidence] = useState(0.3);
 
-  // Enhanced deal data with mobile app deep linking
-  const dealStatuses: DealStatus[] = [
-    {
-      id: 1,
-      restaurant: "Panda Express",
-      restaurantLogo: "🐼",
-      team: "Los Angeles Dodgers",
-      sport: "MLB",
-      triggerConditions: ["Home game", "Won game"],
-      conditionsMet: [true, true],
-      redemptionMethod: "Online Code",
-      promoCode: "DODGERSWIN",
-      isActive: true,
-      expiresAt: "2025-07-18T23:59:59Z",
-      lastTriggeredGame: "Dodgers 8 - Giants 4",
-      instructions: "Get a 2-Entrée Plate for $6 instead of $10.70 when the Dodgers win at home! Sign up for an account on their site or download the app. Offer is only valid online. Start an online order and select a participating location in California or Nevada. Enter 'DODGERSWIN' in the offer code during checkout.",
-      websiteUrl: "https://www.pandaexpress.com/order",
-      participatingLocations: "California and Nevada locations",
-      dealDescription: "2-Entrée Plate for $6.00",
-      foodItem: "Panda Plate",
-      dealValue: "FREE $4.70 value",
-      dealImage: "/attached_assets/panda-express-promo_1752690233859.png"
+  // Fetch real discovered deals from the API
+  const { data: discoveredDeals, isLoading, refetch, isRefetching } = useQuery<{sites: DiscoveredDeal[]}>({
+    queryKey: ['discovered-deals'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/discovery/sites');
+      if (!response.ok) throw new Error('Failed to fetch deals');
+      return response.json();
     },
-    {
-      id: 2,
-      restaurant: "McDonald's",
-      restaurantLogo: "🍟",
-      team: "Los Angeles Dodgers", 
-      sport: "MLB",
-      triggerConditions: ["Scored 6+ runs"],
-      conditionsMet: [true],
-      redemptionMethod: "Mobile App Only",
-      isActive: true,
-      expiresAt: "2025-07-18T23:59:59Z",
-      lastTriggeredGame: "Dodgers 8 - Giants 4 (8 runs)",
-      instructions: "Free 6 pc Chicken McNuggets with minimum $2 purchase. Download the McDonald's mobile app and navigate to 'Rewards & Deals'. Look for the deal with the Dodgers logo in 'App exclusive deals'. Add to your mobile order with a minimum $2 purchase.",
-      appStoreUrl: "https://apps.apple.com/us/app/mcdonalds/id922103212",
-      playStoreUrl: "https://play.google.com/store/apps/details?id=com.mcdonalds.app",
-      appDeepLink: "mcdonalds://deals/dodgers-nuggets",
-      participatingLocations: "All Los Angeles area McDonald's",
-      dealDescription: "Free 6pc Chicken McNuggets",
-      foodItem: "McNuggets",
-      dealValue: "FREE $3.99 value",
-      dealImage: "/attached_assets/mcdonalds-dodgers-deal_1752690222163.png"
-    },
-    {
-      id: 3,
-      restaurant: "ampm",
-      restaurantLogo: "⛽",
-      team: "Los Angeles Dodgers",
-      sport: "MLB", 
-      triggerConditions: ["Home game", "Stole a base"],
-      conditionsMet: [true, false],
-      redemptionMethod: "Push Notification",
-      isActive: false,
-      instructions: "Download the ampm app and enable location sharing and push notifications. When the Dodgers steal a base at home, you'll get a push notification for a free hot dog and 12 oz Slim Coca-Cola. Offer available to first 1,000 responders for 24 hours.",
-      appStoreUrl: "https://apps.apple.com/us/app/ampm/id1234567890",
-      playStoreUrl: "https://play.google.com/store/apps/details?id=com.ampm.app",
-      appDeepLink: "ampm://notifications/enable",
-      participatingLocations: "Greater Los Angeles area",
-      dealDescription: "Free Hot Dog + 12oz Coke",
-      foodItem: "Hot Dog Combo",
-      dealValue: "FREE $4.99 value",
-      dealImage: "/attached_assets/ampm-dodgers-promo_1752690208698.jpg"
-    },
-    {
-      id: 4,
-      restaurant: "Jack in the Box",
-      restaurantLogo: "🍔",
-      team: "Los Angeles Dodgers",
-      sport: "MLB",
-      triggerConditions: ["Struck out 7+ opponents"],
-      conditionsMet: [false],
-      redemptionMethod: "Multi-Platform",
-      promoCode: "GODODGERS25",
-      isActive: false,
-      instructions: "Free Jumbo Jack with purchase of large Coca-Cola (about $4 with tax). Activates the day after Dodgers strike out 7+ opponents. Use promo code 'GODODGERS25' through the app, website, or in-store.",
-      websiteUrl: "https://www.jackinthebox.com",
-      appStoreUrl: "https://apps.apple.com/us/app/jack-in-the-box/id1234567891",
-      appDeepLink: "jackinthebox://promo/GODODGERS25",
-      participatingLocations: "All Jack in the Box locations",
-      dealDescription: "Free Jumbo Jack with Large Coke Purchase",
-      foodItem: "Jumbo Jack",
-      dealValue: "FREE $5.49 value",
-      dealImage: "/attached_assets/jackinthebox-dodgers-deal_1752690195103.png"
-    }
-  ];
+    refetchInterval: 30000 // Refresh every 30 seconds
+  });
 
-  const getTimeRemaining = (expiresAt: string) => {
+  // Filter deals based on confidence and relevance
+  const getFilteredDeals = () => {
+    if (!discoveredDeals?.sites) return [];
+    
+    return discoveredDeals.sites
+      .filter(deal => {
+        const confidence = parseFloat(deal.confidence);
+        const content = (deal.title + ' ' + deal.content).toLowerCase();
+        
+        // Filter by confidence and food/deal related keywords
+        const hasRelevantKeywords = 
+          content.includes('free') || 
+          content.includes('deal') || 
+          content.includes('promo') || 
+          content.includes('discount') || 
+          content.includes('offer') ||
+          content.includes('coupon') ||
+          content.includes('save') ||
+          content.includes('pizza') ||
+          content.includes('burger') ||
+          content.includes('food') ||
+          content.includes('restaurant') ||
+          content.includes('mcdonalds') || 
+          content.includes('panda') || 
+          content.includes('taco') ||
+          content.includes('subway') ||
+          content.includes('dodgers') ||
+          content.includes('lakers') ||
+          content.includes('win');
+        
+        return confidence >= filterConfidence && hasRelevantKeywords;
+      })
+      .sort((a, b) => parseFloat(b.confidence) - parseFloat(a.confidence))
+      .slice(0, 20); // Show top 20 deals
+  };
+
+  const filteredDeals = getFilteredDeals();
+  const totalDeals = discoveredDeals?.sites?.length || 0;
+
+  const getConfidenceBadgeColor = (confidence: number) => {
+    if (confidence >= 0.7) return "bg-green-100 text-green-800";
+    if (confidence >= 0.5) return "bg-yellow-100 text-yellow-800";
+    return "bg-gray-100 text-gray-800";
+  };
+
+  const getTimeAgo = (date: string) => {
     const now = new Date();
-    const expiry = new Date(expiresAt);
-    const diffInHours = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60));
+    const dealDate = new Date(date);
+    const diffInHours = Math.floor((now.getTime() - dealDate.getTime()) / (1000 * 60 * 60));
     
-    if (diffInHours <= 0) return "Expired";
-    if (diffInHours < 6) return `${diffInHours}h left`;
-    if (diffInHours < 24) return `${diffInHours}h left`;
-    return `${Math.ceil(diffInHours / 24)}d left`;
+    if (diffInHours < 1) return "Just now";
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays === 1) return "Yesterday";
+    return `${diffInDays} days ago`;
   };
 
-  const copyPromoCode = (code: string) => {
-    navigator.clipboard.writeText(code);
+  const handleRefresh = () => {
+    refetch();
     toast({
-      title: "Copied!",
-      description: `Promo code "${code}" copied to clipboard`,
+      title: "Refreshing deals...",
+      description: "Fetching latest deals from discovery engine"
     });
-  };
-
-  const openMobileApp = (deal: DealStatus) => {
-    if (deal.appDeepLink) {
-      window.location.href = deal.appDeepLink;
-      setTimeout(() => {
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const storeUrl = isIOS ? deal.appStoreUrl : deal.playStoreUrl;
-        if (storeUrl) {
-          window.open(storeUrl, '_blank');
-        }
-      }, 2000);
-    } else {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      const storeUrl = isIOS ? deal.appStoreUrl : deal.playStoreUrl;
-      if (storeUrl) {
-        window.open(storeUrl, '_blank');
-      }
-    }
-  };
-
-  const activeDealCount = dealStatuses.filter(deal => deal.isActive).length;
-
-  const activeDeals = dealStatuses.filter(deal => deal.isActive);
-
-  const getStatusBadge = (deal: DealStatus) => {
-    if (!deal.isActive) {
-      return <Badge variant="secondary" className="bg-gray-100 text-gray-600">Not Active</Badge>;
-    }
-    
-    if (deal.expiresAt) {
-      const hoursLeft = Math.ceil((new Date(deal.expiresAt).getTime() - new Date().getTime()) / (1000 * 60 * 60));
-      if (hoursLeft < 6) {
-        return <Badge variant="destructive" className="bg-orange-100 text-orange-800">Expires Soon</Badge>;
-      }
-    }
-    
-    return <Badge variant="default" className="bg-green-100 text-green-800 font-semibold">ACTIVE</Badge>;
-  };
-
-  const renderTriggerConditions = (deal: DealStatus) => {
-    return (
-      <div className="space-y-1">
-        {deal.triggerConditions.map((condition, index) => (
-          <div key={index} className="flex items-center gap-2 text-sm">
-            <span className={deal.conditionsMet[index] ? "text-green-600" : "text-red-500"}>
-              {deal.conditionsMet[index] ? "✅" : "❌"}
-            </span>
-            <span className={deal.conditionsMet[index] ? "text-green-800" : "text-gray-600"}>
-              {condition}
-            </span>
-          </div>
-        ))}
-      </div>
-    );
   };
 
   return (
     <div className="space-y-6">
-      {/* Header with game context */}
+      {/* Header with real-time stats */}
       <div className="text-center space-y-4">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Did the Dodgers win at home yesterday?</h1>
+          <h1 className="text-3xl font-bold mb-2">Real-Time Deal Discovery</h1>
           <p className="text-lg text-muted-foreground">
-            Yes! Dodgers beat Giants 8-4. <span className="font-semibold text-green-600">{activeDealCount} deals available today.</span>
+            Live monitoring of {totalDeals} discovered deals • 
+            <span className="font-semibold text-green-600"> {filteredDeals.length} relevant deals</span> • 
+            Auto-refreshes every 30 seconds
           </p>
         </div>
         
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-          <h3 className="font-semibold mb-2">Next home game</h3>
-          <div className="text-sm text-muted-foreground">
-            <div>Friday, July 18, 2025 - 7:10 PM</div>
-            <div className="flex items-center justify-center gap-4 mt-2">
-              <span>Milwaukee Brewers</span>
-              <span>vs</span>
-              <span className="font-semibold">Los Angeles Dodgers</span>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold mb-1">Discovery Engine Status</h3>
+              <div className="text-sm text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></span>
+                  Active - Monitoring Reddit, Social Media, News
+                </span>
+              </div>
             </div>
+            <Button 
+              onClick={handleRefresh}
+              disabled={isRefetching}
+              size="sm"
+              variant="outline"
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        {/* Confidence Filter */}
+        <div className="flex items-center justify-center gap-4">
+          <span className="text-sm font-medium">Min Confidence:</span>
+          <div className="flex gap-2">
+            {[0.2, 0.3, 0.4, 0.5, 0.6].map(threshold => (
+              <Button
+                key={threshold}
+                size="sm"
+                variant={filterConfidence === threshold ? "default" : "outline"}
+                onClick={() => setFilterConfidence(threshold)}
+              >
+                {Math.round(threshold * 100)}%
+              </Button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Deals table - Desktop */}
-      <div className="hidden md:block">
+      {/* Loading state */}
+      {isLoading && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+            <p>Loading real-time deals from discovery engine...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* No deals state */}
+      {!isLoading && filteredDeals.length === 0 && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-muted-foreground mb-4">
+              No deals found matching your criteria.
+            </p>
+            <Button 
+              onClick={() => setFilterConfidence(0.2)}
+              variant="outline"
+            >
+              Lower confidence threshold
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Real Discovered Deals */}
+      {filteredDeals.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <span>Active Deals Status</span>
-              <Badge variant="outline">{activeDealCount} Active</Badge>
+              <Zap className="h-5 w-5 text-yellow-500" />
+              <span>Live Discovered Deals</span>
+              <Badge variant="outline">{filteredDeals.length} of {totalDeals}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Restaurant</TableHead>
-                  <TableHead>Team</TableHead>
-                  <TableHead>Trigger Conditions</TableHead>
-                  <TableHead>Redeem Method</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dealStatuses.map((deal) => (
-                  <TableRow key={deal.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{deal.restaurantLogo}</span>
-                        <div>
-                          <div className="font-medium">{deal.restaurant}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {deal.isActive && deal.expiresAt && getTimeRemaining(deal.expiresAt)}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredDeals.map((deal) => {
+                const confidence = parseFloat(deal.confidence);
+                return (
+                  <Card 
+                    key={deal.id} 
+                    className={`border-l-4 ${
+                      confidence >= 0.6 ? 'border-l-green-500' : 
+                      confidence >= 0.4 ? 'border-l-yellow-500' : 
+                      'border-l-gray-400'
+                    } hover:shadow-lg transition-shadow`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        {/* Header with confidence */}
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-semibold text-sm line-clamp-2 flex-1">
+                            {deal.title}
+                          </h4>
+                          <Badge 
+                            variant="secondary" 
+                            className={`text-xs whitespace-nowrap ${getConfidenceBadgeColor(confidence)}`}
+                          >
+                            {Math.round(confidence * 100)}%
+                          </Badge>
+                        </div>
+
+                        {/* Content preview */}
+                        <p className="text-xs text-muted-foreground line-clamp-3">
+                          {deal.content}
+                        </p>
+
+                        {/* Extracted data if available */}
+                        {(deal.restaurantDetected || deal.teamDetected || deal.promoCodeDetected) && (
+                          <div className="flex flex-wrap gap-1">
+                            {deal.restaurantDetected && (
+                              <Badge variant="outline" className="text-xs">
+                                {deal.restaurantDetected}
+                              </Badge>
+                            )}
+                            {deal.teamDetected && (
+                              <Badge variant="outline" className="text-xs">
+                                {deal.teamDetected}
+                              </Badge>
+                            )}
+                            {deal.promoCodeDetected && (
+                              <Badge variant="default" className="text-xs">
+                                Code: {deal.promoCodeDetected}
+                              </Badge>
+                            )}
                           </div>
+                        )}
+
+                        {/* Footer with time and link */}
+                        <div className="flex items-center justify-between text-xs pt-2 border-t">
+                          <span className="text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {getTimeAgo(deal.foundAt)}
+                          </span>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => window.open(deal.url, '_blank')}
+                            className="h-7 text-xs"
+                          >
+                            View Source <ExternalLink className="h-3 w-3 ml-1" />
+                          </Button>
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div className="font-medium">{deal.team}</div>
-                        <div className="text-muted-foreground">{deal.sport}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {renderTriggerConditions(deal)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {deal.promoCode ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => copyPromoCode(deal.promoCode!)}
-                            className="gap-2"
-                          >
-                            <Copy className="h-3 w-3" />
-                            {deal.promoCode}
-                          </Button>
-                        ) : (
-                          <span>{deal.redemptionMethod}</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {getStatusBadge(deal)}
-                    </TableCell>
-                    <TableCell>
-                      {deal.isActive ? (
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                              REDEEM NOW
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                              <DialogTitle className="flex items-center gap-3">
-                                <span className="text-2xl">{deal.restaurantLogo}</span>
-                                How to redeem the {deal.restaurant} deal
-                              </DialogTitle>
-                              <DialogDescription>
-                                Step-by-step redemption instructions
-                              </DialogDescription>
-                            </DialogHeader>
-                            <RedemptionInstructions deal={deal} />
-                          </DialogContent>
-                        </Dialog>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">-</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
-      </div>
-
-      {/* Mobile Cards */}
-      <div className="md:hidden space-y-4">
-        {dealStatuses.map((deal) => (
-          <Card key={deal.id} className={deal.isActive ? "border-green-200 bg-green-50 dark:bg-green-900/10" : ""}>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{deal.restaurantLogo}</span>
-                  <div>
-                    <h3 className="font-semibold">{deal.restaurant}</h3>
-                    <p className="text-sm text-muted-foreground">{deal.team}</p>
-                  </div>
-                </div>
-                {getStatusBadge(deal)}
-              </div>
-              
-              <div className="mb-3">
-                {renderTriggerConditions(deal)}
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="text-sm">
-                  {deal.promoCode ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => copyPromoCode(deal.promoCode!)}
-                      className="gap-2"
-                    >
-                      <Copy className="h-3 w-3" />
-                      {deal.promoCode}
-                    </Button>
-                  ) : (
-                    <span className="text-muted-foreground">{deal.redemptionMethod}</span>
-                  )}
-                </div>
-                
-                {deal.isActive && (
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                        REDEEM NOW
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-[95vw] max-h-[80vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle className="flex items-center gap-3">
-                          <span className="text-2xl">{deal.restaurantLogo}</span>
-                          How to redeem the {deal.restaurant} deal
-                        </DialogTitle>
-                      </DialogHeader>
-                      <RedemptionInstructions deal={deal} />
-                    </DialogContent>
-                  </Dialog>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RedemptionInstructions({ deal }: { deal: DealStatus }) {
-  const { toast } = useToast();
-
-  const copyPromoCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    toast({
-      title: "Copied!",
-      description: `Promo code "${code}" copied to clipboard`,
-    });
-  };
-
-  const openMobileApp = (deal: DealStatus) => {
-    if (deal.appDeepLink) {
-      window.location.href = deal.appDeepLink;
-      setTimeout(() => {
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const storeUrl = isIOS ? deal.appStoreUrl : deal.playStoreUrl;
-        if (storeUrl) {
-          window.open(storeUrl, '_blank');
-        }
-      }, 2000);
-    } else {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      const storeUrl = isIOS ? deal.appStoreUrl : deal.playStoreUrl;
-      if (storeUrl) {
-        window.open(storeUrl, '_blank');
-      }
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-        <div className="font-medium text-green-800 dark:text-green-200 mb-2">
-          Deal Details
-        </div>
-        <p className="text-sm text-green-700 dark:text-green-300">
-          {deal.instructions}
-        </p>
-      </div>
-
-      {deal.promoCode && (
-        <div>
-          <div className="font-medium mb-2">Promo Code</div>
-          <Button
-            variant="outline"
-            onClick={() => copyPromoCode(deal.promoCode!)}
-            className="gap-2 font-mono"
-          >
-            <Copy className="h-4 w-4" />
-            {deal.promoCode}
-          </Button>
-        </div>
       )}
 
-      <div className="space-y-3">
-        <div className="font-medium">Quick Actions</div>
-        <div className="space-y-3">
-          {deal.websiteUrl && (
-            <Button variant="outline" size="lg" asChild className="w-full h-12">
-              <a href={deal.websiteUrl} target="_blank" rel="noopener noreferrer" className="gap-3">
-                <Globe className="h-5 w-5" />
-                Order Online
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            </Button>
-          )}
-          {(deal.appStoreUrl || deal.playStoreUrl) && (
-            <Button 
-              variant="outline" 
-              size="lg"
-              onClick={() => openMobileApp(deal)}
-              className="w-full h-12 gap-3"
-            >
-              <Smartphone className="h-5 w-5" />
-              Download App
-            </Button>
-          )}
-        </div>
+      {/* Real-time update indicator */}
+      <div className="text-center text-sm text-muted-foreground">
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></span>
+          Real-time data • Updates every 30 seconds • Last refresh: {new Date().toLocaleTimeString()}
+        </span>
       </div>
-
-      <div>
-        <div className="font-medium mb-2 flex items-center gap-2">
-          <MapPin className="h-4 w-4" />
-          Participating Locations
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {deal.participatingLocations}
-        </p>
-      </div>
-
-      {deal.lastTriggeredGame && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-          <div className="text-sm">
-            <div className="font-medium">Triggered by:</div>
-            <div className="text-muted-foreground">{deal.lastTriggeredGame}</div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

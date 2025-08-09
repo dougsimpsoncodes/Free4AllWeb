@@ -45,8 +45,11 @@ export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
   
   // Security middleware
+  // Disable CSP in development to allow Vite's inline scripts
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
   app.use(helmet({
-    contentSecurityPolicy: {
+    contentSecurityPolicy: isDevelopment ? false : {
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -58,25 +61,39 @@ export async function setupAuth(app: Express) {
     }
   }));
   
-  // Rate limiting
+  // Rate limiting - more lenient in development
   const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
+    windowMs: isDevelopment ? 1 * 60 * 1000 : 15 * 60 * 1000, // 1 minute in dev, 15 minutes in prod
+    max: isDevelopment ? 1000 : 100, // 1000 requests per minute in dev, 100 per 15 min in prod
     message: {
-      error: "Too many requests from this IP, please try again later."
+      error: isDevelopment ? 
+        "Rate limit reached (dev mode: 1000 requests/minute)" : 
+        "Too many requests from this IP, please try again later."
     },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: isDevelopment ? (req) => {
+      // Skip rate limiting entirely for localhost in development
+      const isLocal = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip?.includes('127.0.0.1');
+      return isLocal;
+    } : undefined,
   });
   app.use(limiter);
   
   // More strict rate limiting for admin routes
   const adminLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 50, // stricter limit for admin endpoints
+    windowMs: isDevelopment ? 1 * 60 * 1000 : 15 * 60 * 1000, // 1 minute in dev, 15 minutes in prod
+    max: isDevelopment ? 500 : 50, // 500 requests per minute in dev, 50 per 15 min in prod
     message: {
-      error: "Too many admin requests, please try again later."
-    }
+      error: isDevelopment ? 
+        "Admin rate limit reached (dev mode: 500 requests/minute)" : 
+        "Too many admin requests, please try again later."
+    },
+    skip: isDevelopment ? (req) => {
+      // Skip admin rate limiting entirely for localhost in development
+      const isLocal = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip?.includes('127.0.0.1');
+      return isLocal;
+    } : undefined,
   });
   app.use('/api/admin', adminLimiter);
   

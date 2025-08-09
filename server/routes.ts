@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { z } from "zod";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, isAdmin, csrfProtection } from "./googleAuth";
 import { mlbApiService } from "./services/mlbApiService";
@@ -7,8 +8,6 @@ import { gameProcessor } from "./services/gameProcessor";
 import { db } from "./db";
 import { games, teams, promotions, restaurants, triggeredDeals } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
-import { dealDiscoveryService } from "./services/dealImageScrapingService";
-import { enhancedDealDiscoveryService } from "./services/enhancedDealDiscovery";
 import { realTimeDealMonitor } from "./services/realTimeDealMonitor";
 import { dealPatternMatcher } from "./services/dealPatternMatcher";
 import { dealMigrationService } from "./services/dealMigrationService";
@@ -18,11 +17,13 @@ import { multiSportsApiService } from "./services/multiSportsApiService";
 import { promotionService } from "./services/promotionService";
 import { seedSportsData } from "./seedData";
 import { gameScrapingService } from "./services/gameScrapingService";
-import { emailService } from "./services/emailService";
-import { smsService } from "./services/smsService";
+import { notificationService } from "./services/notificationService";
 import { registerNotificationRoutes } from "./routes/notifications";
 import { registerGameSchedulingRoutes } from "./routes/gameScheduling";
+import { agentsRouter, setupWebSocketEvents } from "./src/routes/agents";
+import { Server as SocketIOServer } from "socket.io";
 import { insertAlertPreferenceSchema, insertPromotionSchema, insertTeamSchema, insertRestaurantSchema } from "@shared/schema";
+import { config } from "./config";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -34,298 +35,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register game scheduling routes
   registerGameSchedulingRoutes(app);
   
+  // Register agent orchestration routes
+  app.use('/api/agents', agentsRouter);
+  
   // Register deal verification routes
   const dealVerificationRoutes = await import("./routes/dealVerification");
-  app.use('/api/deal-verification', dealVerificationRoutes.default);
+  app.use('/api/deal-verification', isAuthenticated, dealVerificationRoutes.default);
   
-  // Email showcase route for testing all email types
-  app.post('/api/email/showcase', async (req, res) => {
-    try {
-      const { email } = req.body;
-      if (!email) {
-        return res.status(400).json({ error: 'Email address required' });
-      }
-
-      console.log(`Sending email showcase to ${email}...`);
-      const emailsSent = [];
-
-      // 1. Pre-game Alert
-      try {
-        await emailService.sendPreGameAlert(email, {
-          homeTeam: 'LA Dodgers',
-          awayTeam: 'San Francisco Giants',
-          gameTime: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
-          venue: 'Dodger Stadium',
-          potentialDeals: [
-            {
-              restaurant: 'Panda Express',
-              offer: '$6 Panda Plate Deal',
-              trigger: 'Dodgers win any game'
-            },
-            {
-              restaurant: 'McDonald\'s',
-              offer: 'Free Big Mac',
-              trigger: 'Dodgers win home game with 6+ runs'
-            }
-          ]
-        });
-        emailsSent.push('Pre-game Alert');
-        console.log('✅ Sent: Pre-game Alert');
-      } catch (error) {
-        console.warn('Failed to send pre-game alert:', (error as Error).message);
-      }
-
-      // Wait 10 seconds between emails to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 10000));
-
-      // 2. Post-game Victory Alert with Triggered Deals
-      try {
-        await emailService.sendPostGameAlert(email, {
-          homeTeam: 'LA Dodgers',
-          awayTeam: 'San Francisco Giants',
-          finalScore: 'Dodgers 8, Giants 3',
-          gameDate: new Date(),
-          triggeredDeals: [
-            {
-              restaurant: 'Panda Express',
-              offer: '$6 Panda Plate Deal',
-              promoCode: 'DODGERSWIN',
-              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-              instructions: 'Show this email at any Panda Express location'
-            },
-            {
-              restaurant: 'McDonald\'s',
-              offer: 'Free Big Mac',
-              promoCode: 'DODGERS8RUNS',
-              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-              instructions: 'Use mobile app or mention promo code at counter'
-            }
-          ]
-        });
-        emailsSent.push('Post-game Victory Alert');
-        console.log('✅ Sent: Post-game Victory Alert');
-      } catch (error) {
-        console.warn('Failed to send post-game alert:', (error as Error).message);
-      }
-
-      res.json({ 
-        success: true, 
-        message: `Email showcase sent to ${email}`,
-        emailsSent,
-        note: 'Check your email for the complete notification experience!'
-      });
-
-    } catch (error) {
-      console.error('Error sending email showcase:', (error as Error).message);
-      res.status(500).json({ error: (error as Error).message });
-    }
-  });
-
-  // SMS testing endpoints
-  app.post('/api/sms/test', async (req, res) => {
-    try {
-      const { phoneNumber } = req.body;
-      if (!phoneNumber) {
-        return res.status(400).json({ error: 'Phone number required' });
-      }
-
-      console.log(`Testing SMS to ${phoneNumber}...`);
-      const result = await smsService.testSMS(phoneNumber);
-
-      res.json({
-        success: result.success,
-        message: result.success ? 'Test SMS sent successfully!' : 'SMS failed to send',
-        provider: result.provider,
-        messageId: result.messageId,
-        error: result.error,
-        quotaRemaining: result.quotaRemaining
-      });
-
-    } catch (error) {
-      console.error('Error testing SMS:', (error as Error).message);
-      res.status(500).json({ error: (error as Error).message });
-    }
-  });
-
-  app.post('/api/sms/pregame-test', async (req, res) => {
-    try {
-      const { phoneNumber } = req.body;
-      if (!phoneNumber) {
-        return res.status(400).json({ error: 'Phone number required' });
-      }
-
-      const result = await smsService.sendPreGameSMSAlert(phoneNumber, {
-        homeTeam: 'LA Dodgers',
-        awayTeam: 'San Francisco Giants',
-        gameTime: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
-        venue: 'Dodger Stadium',
-        potentialDeals: [
-          {
-            restaurant: 'Panda Express',
-            offer: '$6 Panda Plate Deal',
-            trigger: 'Dodgers win any game'
-          },
-          {
-            restaurant: 'McDonald\'s',
-            offer: 'Free Big Mac',
-            trigger: 'Dodgers win home game with 6+ runs'
-          }
-        ]
-      });
-
-      res.json({
-        success: result.success,
-        message: result.success ? 'Pre-game SMS sent successfully!' : 'SMS failed to send',
-        provider: result.provider,
-        messageId: result.messageId,
-        error: result.error,
-        quotaRemaining: result.quotaRemaining
-      });
-
-    } catch (error) {
-      console.error('Error sending pre-game SMS:', (error as Error).message);
-      res.status(500).json({ error: (error as Error).message });
-    }
-  });
-
-  app.post('/api/sms/postgame-test', async (req, res) => {
-    try {
-      const { phoneNumber } = req.body;
-      if (!phoneNumber) {
-        return res.status(400).json({ error: 'Phone number required' });
-      }
-
-      const result = await smsService.sendPostGameSMSAlert(phoneNumber, {
-        homeTeam: 'LA Dodgers',
-        awayTeam: 'San Francisco Giants',
-        finalScore: 'Dodgers 8, Giants 3',
-        triggeredDeals: [
-          {
-            restaurant: 'Panda Express',
-            offer: '$6 Panda Plate Deal',
-            promoCode: 'DODGERSWIN',
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-            instructions: 'Show this text at any Panda Express location'
-          },
-          {
-            restaurant: 'McDonald\'s',
-            offer: 'Free Big Mac',
-            promoCode: 'DODGERSBIGMAC',
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-            instructions: 'Valid at participating McDonald\'s locations'
-          }
-        ]
-      });
-
-      res.json({
-        success: result.success,
-        message: result.success ? 'Post-game SMS sent successfully!' : 'SMS failed to send',
-        provider: result.provider,
-        messageId: result.messageId,
-        error: result.error,
-        quotaRemaining: result.quotaRemaining
-      });
-
-    } catch (error) {
-      console.error('Error sending post-game SMS:', (error as Error).message);
-      res.status(500).json({ error: (error as Error).message });
-    }
-  });
-
-  // SMS provider status endpoint
-  app.get('/api/sms/providers', async (req, res) => {
-    try {
-      const providers = await smsService.getProviderStatus();
-      res.json({
-        success: true,
-        providers
-      });
-    } catch (error) {
-      console.error('Error getting SMS provider status:', (error as Error).message);
-      res.status(500).json({ error: (error as Error).message });
-    }
-  });
-
-  // Direct Twilio test endpoint
-  app.post('/api/sms/twilio-direct', async (req, res) => {
-    try {
-      const { phoneNumber } = req.body;
-      if (!phoneNumber) {
-        return res.status(400).json({ error: 'Phone number required' });
-      }
-
-      // Test environment variables directly
-      const accountSid = process.env.TWILIO_ACCOUNT_SID;
-      const authToken = process.env.TWILIO_AUTH_TOKEN; 
-      const fromNumber = process.env.TWILIO_PHONE_NUMBER;
-      
-      console.log('Environment variables check:', {
-        hasAccountSid: !!accountSid,
-        accountSidLength: accountSid?.length || 0,
-        hasAuthToken: !!authToken,
-        authTokenLength: authToken?.length || 0,
-        hasFromNumber: !!fromNumber,
-        fromNumberLength: fromNumber?.length || 0
-      });
-
-      if (!accountSid || !authToken || !fromNumber) {
-        return res.status(400).json({ 
-          error: 'Twilio credentials missing from environment',
-          missing: {
-            accountSid: !accountSid,
-            authToken: !authToken,
-            fromNumber: !fromNumber
-          }
-        });
-      }
-
-      // Direct Twilio API call
-      const cleanPhone = phoneNumber.replace(/[^\d+]/g, '');
-      const message = '🧪 Free4All Direct Twilio Test\n\nThis message confirms your Twilio integration is working!\n\n🍔 Free4All';
-
-      const response = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({
-            From: fromNumber,
-            To: cleanPhone,
-            Body: message
-          })
-        }
-      );
-
-      const result = await response.json() as any;
-      
-      if (response.ok && result.sid) {
-        console.log(`✅ Direct Twilio SMS sent to ${cleanPhone}`);
-        res.json({
-          success: true,
-          message: 'Direct Twilio test successful!',
-          provider: 'Twilio',
-          messageId: result.sid
-        });
-      } else {
-        console.warn(`❌ Direct Twilio SMS failed: ${result.message}`);
-        res.json({
-          success: false,
-          message: 'Direct Twilio test failed',
-          provider: 'Twilio',
-          error: result.message || 'Unknown Twilio error',
-          details: result
-        });
-      }
-
-    } catch (error) {
-      console.error('Error in direct Twilio test:', (error as Error).message);
-      res.status(500).json({ error: (error as Error).message });
-    }
-  });
-
   // Serve logos directly
   app.get('/logos/:filename', (req, res) => {
     const filename = req.params.filename;
@@ -407,11 +123,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/promotions', async (req, res) => {
     try {
-      const teamId = req.query.teamId as string;
+      const { teamId } = z.object({ teamId: z.string().regex(/^\d+$/).transform(Number).optional() }).parse(req.query);
+
       let promotions;
       
       if (teamId) {
-        promotions = await storage.getPromotionsByTeam(parseInt(teamId));
+        promotions = await storage.getPromotionsByTeam(teamId);
       } else {
         promotions = await storage.getActivePromotions();
       }
@@ -425,26 +142,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/active-deals', async (req, res) => {
     try {
-      const teamId = req.query.teamId as string;
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100); // Max 100 per page
+      const { teamId, page, limit } = z.object({
+        teamId: z.string().regex(/^\d+$/).transform(Number).optional(),
+        page: z.string().regex(/^\d+$/).transform(Number).optional(),
+        limit: z.string().regex(/^\d+$/).transform(Number).optional(),
+      }).parse(req.query);
+
       let deals;
 
       if (teamId) {
-        deals = await promotionService.getActiveDealsForTeam(parseInt(teamId));
+        deals = await promotionService.getActiveDealsForTeam(teamId);
         res.json(deals);
       } else {
-        // PERFORMANCE: Get paginated deals with related data in ONE query instead of N+1
-        const result = await storage.getActiveTriggeredDealsWithDetailsPaginated(page, limit);
+        const result = await storage.getActiveTriggeredDealsWithDetailsPaginated(page || 1, limit || 20);
         res.json({
           deals: result.deals,
           pagination: {
-            page,
-            limit,
+            page: page || 1,
+            limit: limit || 20,
             total: result.total,
-            totalPages: Math.ceil(result.total / limit),
-            hasNext: page * limit < result.total,
-            hasPrev: page > 1
+            totalPages: Math.ceil(result.total / (limit || 20)),
+            hasNext: (page || 1) * (limit || 20) < result.total,
+            hasPrev: (page || 1) > 1
           }
         });
       }
@@ -456,9 +175,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/recent-games/:teamId', async (req, res) => {
     try {
-      const teamId = parseInt(req.params.teamId);
-      const limit = parseInt(req.query.limit as string) || 5;
-      const games = await storage.getRecentGames(teamId, limit);
+      const { teamId } = z.object({ teamId: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+      const { limit } = z.object({ limit: z.string().regex(/^\d+$/).transform(Number).optional() }).parse(req.query);
+
+      const games = await storage.getRecentGames(teamId, limit || 5);
       res.json(games);
     } catch (error) {
       console.error("Error fetching recent games:", (error as Error).message);
@@ -493,7 +213,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingPreferences.length === 1) {
         const user = await storage.getUser(userId);
         if (user) {
-          await emailService.sendWelcomeEmail(user);
+          await notificationService.sendWelcomeEmail(user);
         }
       }
 
@@ -507,17 +227,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/alert-preferences/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const preferenceId = parseInt(req.params.id);
-      
+      const { id } = z.object({ id: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+
       // Verify ownership
       const existingPreference = await storage.getUserAlertPreferences(userId);
-      const ownedPreference = existingPreference.find(p => p.id === preferenceId);
+      const ownedPreference = existingPreference.find(p => p.id === id);
       
       if (!ownedPreference) {
         return res.status(404).json({ message: "Alert preference not found" });
       }
 
-      const updatedPreference = await storage.updateAlertPreference(preferenceId, req.body);
+      const updatedPreference = await storage.updateAlertPreference(id, req.body);
       res.json(updatedPreference);
     } catch (error) {
       console.error("Error updating alert preference:", (error as Error).message);
@@ -528,17 +248,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/alert-preferences/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const preferenceId = parseInt(req.params.id);
+      const { id } = z.object({ id: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
       
       // Verify ownership
       const existingPreferences = await storage.getUserAlertPreferences(userId);
-      const ownedPreference = existingPreferences.find(p => p.id === preferenceId);
+      const ownedPreference = existingPreferences.find(p => p.id === id);
       
       if (!ownedPreference) {
         return res.status(404).json({ message: "Alert preference not found" });
       }
 
-      await storage.deleteAlertPreference(preferenceId);
+      await storage.deleteAlertPreference(id);
       res.json({ message: "Alert preference deleted" });
     } catch (error) {
       console.error("Error deleting alert preference:", (error as Error).message);
@@ -549,7 +269,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin routes (protected)
   app.post('/api/admin/teams', csrfProtection, isAdmin, async (req: any, res) => {
     try {
-      // Admin role check handled by isAdmin middleware
       const validatedData = insertTeamSchema.parse(req.body);
       const team = await storage.createTeam(validatedData);
       res.json(team);
@@ -561,7 +280,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/admin/restaurants', csrfProtection, isAdmin, async (req: any, res) => {
     try {
-      // Admin role check handled by isAdmin middleware
       const validatedData = insertRestaurantSchema.parse(req.body);
       const restaurant = await storage.createRestaurant(validatedData);
       res.json(restaurant);
@@ -573,7 +291,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/admin/promotions', csrfProtection, isAdmin, async (req: any, res) => {
     try {
-      // Admin role check handled by isAdmin middleware
       const validatedData = insertPromotionSchema.parse(req.body);
       const promotion = await storage.createPromotion(validatedData);
       res.json(promotion);
@@ -585,8 +302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/admin/sync-games/:teamId', isAdmin, async (req: any, res) => {
     try {
-      // Admin role check handled by isAdmin middleware
-      const teamId = parseInt(req.params.teamId);
+      const { teamId } = z.object({ teamId: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
       await promotionService.syncRecentGames(teamId);
       res.json({ message: "Games synced successfully" });
     } catch (error) {
@@ -597,9 +313,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/admin/analytics', isAdmin, async (req: any, res) => {
     try {
-      // Admin role check handled by isAdmin middleware
       const activeDeals = await storage.getActiveTriggeredDeals();
-      const totalUsers = await storage.getUsersByTeamPreference(1); // Dodgers for now
+      const totalUsers = await storage.getUsersByTeamPreference(config.DODGERS_TEAM_ID);
       
       res.json({
         activeDeals: activeDeals.length,
@@ -612,38 +327,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Webhook endpoint for testing alerts
-  app.post('/api/test-alert', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      
-      if (user) {
-        await emailService.sendWelcomeEmail(user);
-        res.json({ message: "Test email sent" });
-      } else {
-        res.status(404).json({ message: "User not found" });
-      }
-    } catch (error) {
-      console.error("Error sending test alert:", (error as Error).message);
-      res.status(500).json({ message: "Failed to send test alert" });
-    }
-  });
-
   // Sports data routes
-  app.get('/api/teams', async (req, res) => {
-    try {
-      const teams = await storage.getActiveTeams();
-      res.json(teams);
-    } catch (error) {
-      console.error('Error fetching teams:', (error as Error).message);
-      res.status(500).json({ message: 'Failed to fetch teams' });
-    }
-  });
-
   app.get('/api/teams/:sport', async (req, res) => {
     try {
-      const { sport } = req.params;
+      const { sport } = z.object({ sport: z.string() }).parse(req.params);
       const teams = await storage.getTeams();
       const filteredTeams = teams.filter(team => team.sport?.toLowerCase() === sport.toLowerCase());
       res.json(filteredTeams);
@@ -673,39 +360,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Alert preferences routes
-  app.get('/api/alert-preferences', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const preferences = await storage.getUserAlertPreferences(userId);
-      res.json(preferences);
-    } catch (error) {
-      console.error('Error fetching alert preferences:', (error as Error).message);
-      res.status(500).json({ message: 'Failed to fetch alert preferences' });
-    }
-  });
-
-  app.post('/api/alert-preferences', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const { teamId, emailEnabled, smsEnabled } = req.body;
-      
-      const preference = await storage.createAlertPreference({
-        userId,
-        teamId,
-        emailAlerts: emailEnabled ?? true,
-        smsAlerts: smsEnabled ?? false
-      });
-      
-      res.json(preference);
-    } catch (error) {
-      console.error('Error creating alert preference:', (error as Error).message);
-      res.status(500).json({ message: 'Failed to create alert preference' });
-    }
-  });
-
   // Development routes (no auth required for testing)
-  app.get('/api/mlb/games/status', async (req, res) => {
+  app.get('/api/mlb/games/status', isAdmin, async (req, res) => {
     try {
       const status = {
         isRunning: true,
@@ -719,9 +375,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/mlb/games/today', async (req, res) => {
+  app.get('/api/mlb/games/today', isAdmin, async (req, res) => {
     try {
-      const recentGames = await storage.getRecentGames(1, 10); // Dodgers recent games
+      const recentGames = await storage.getRecentGames(config.DODGERS_TEAM_ID, 10);
       res.json(recentGames);
     } catch (error) {
       console.error('Error fetching today\'s games:', (error as Error).message);
@@ -729,7 +385,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/mlb/games/process', async (req, res) => {
+  app.post('/api/mlb/games/process', isAdmin, async (req, res) => {
     try {
       await gameProcessor.triggerManualProcess();
       res.json({ message: 'Game processing completed successfully' });
@@ -739,7 +395,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/admin/promotions', async (req, res) => {
+  app.get('/api/admin/promotions', isAdmin, async (req, res) => {
     try {
       const promotions = await storage.getActivePromotions();
       const formattedPromotions = promotions.map(p => ({
@@ -756,7 +412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin routes for data management
-  app.post('/api/admin/seed-data', async (req, res) => {
+  app.post('/api/admin/seed-data', isAdmin, async (req, res) => {
     try {
       await seedSportsData();
       res.json({ message: 'Sports data seeded successfully' });
@@ -777,32 +433,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/admin/sync-games/:teamId', async (req, res) => {
-    try {
-      const { teamId } = req.params;
-      await promotionService.syncRecentGames(parseInt(teamId));
-      res.json({ message: 'Games synced successfully' });
-    } catch (error) {
-      console.error('Error syncing games:', (error as Error).message);
-      res.status(500).json({ message: 'Failed to sync games' });
-    }
-  });
-
-  // Real-time sports data integration
-  app.get('/api/games/recent/:teamId', async (req, res) => {
-    try {
-      const { teamId } = req.params;
-      const limit = parseInt(req.query.limit as string) || 10;
-      const games = await storage.getRecentGames(parseInt(teamId), limit);
-      res.json(games);
-    } catch (error) {
-      console.error('Error fetching recent games:', (error as Error).message);
-      res.status(500).json({ message: 'Failed to fetch recent games' });
-    }
-  });
-
   // Scraping and testing routes
-  app.post('/api/admin/scrape-all-teams', async (req, res) => {
+  app.post('/api/admin/scrape-all-teams', isAdmin, async (req, res) => {
     try {
       console.log('🚀 Starting comprehensive team scraping...');
       const report = await gameScrapingService.generateScrapingReport();
@@ -813,10 +445,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/admin/scrape-team/:teamId', async (req, res) => {
+  app.post('/api/admin/scrape-team/:teamId', isAdmin, async (req, res) => {
     try {
-      const { teamId } = req.params;
-      const team = await storage.getTeam(parseInt(teamId));
+      const { teamId } = z.object({ teamId: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+      const team = await storage.getTeam(teamId);
       if (!team) {
         return res.status(404).json({ message: 'Team not found' });
       }
@@ -829,10 +461,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/admin/test-promotions/:teamId', async (req, res) => {
+  app.get('/api/admin/test-promotions/:teamId', isAdmin, async (req, res) => {
     try {
-      const { teamId } = req.params;
-      const analysis = await gameScrapingService.testPromotionTriggers(parseInt(teamId));
+      const { teamId } = z.object({ teamId: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+      const analysis = await gameScrapingService.testPromotionTriggers(teamId);
       res.json(analysis);
     } catch (error) {
       console.error('Error testing promotions:', (error as Error).message);
@@ -841,38 +473,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // External sports API testing
-  app.get('/api/admin/test-sports-api/:sport/:teamId', async (req, res) => {
+  app.get('/api/admin/test-sports-api/:sport/:teamId', isAdmin, async (req, res) => {
     try {
-      const { sport, teamId } = req.params;
-      const days = parseInt(req.query.days as string) || 7;
+      const { sport, teamId } = z.object({ sport: z.string(), teamId: z.string() }).parse(req.params);
+      const { days } = z.object({ days: z.string().regex(/^\d+$/).transform(Number).optional() }).parse(req.query);
       
       console.log(`🔍 Testing ${sport} API for team ${teamId}...`);
-      const games = await multiSportsApiService.getGamesForTeam(sport, teamId, days);
+      const games = await multiSportsApiService.getGamesForTeam(sport, teamId, days || 7);
       
       res.json({
         sport,
         teamId,
-        daysSearched: days,
+        daysSearched: days || 7,
         gamesFound: games.length,
         games: games.slice(0, 5), // Return first 5 games for preview
         apiStatus: games.length > 0 ? 'working' : 'no_data'
       });
     } catch (error) {
       console.error('Error testing sports API:', (error as Error).message);
-      res.status(500).json({ 
+      res.status(500).json({
         message: 'Sports API test failed', 
         error: (error as Error).message,
         apiStatus: 'error'
       });
     }
   });
-
-  // Development auth bypass for admin endpoints
-  const authMiddleware = process.env.NODE_ENV === 'development' ? (req: any, res: any, next: any) => {
-    // Mock authenticated user for development
-    req.user = { claims: { sub: 'dev-user-123' } };
-    next();
-  } : isAuthenticated;
 
   // NEW: Enhanced Discovery Engine with Integrated Social Media Search
   app.post("/api/admin/discovery/run", isAdmin, async (req, res) => {
@@ -915,25 +540,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/discovery/sites", isAdmin, async (req, res) => {
     try {
-      const precision = req.query.precision === 'true';
-      const limit = parseInt(req.query.limit as string) || 50;
-      
-      let sites;
-      if (precision) {
-        // Use precision filter for authentic deals only
-        const { precisionFilter } = await import('./services/precisionFilter');
-        sites = await precisionFilter.getAuthenticDeals(limit);
-      } else {
-        // Get all discovered sites
-        sites = await storage.getDiscoveredSites();
-        // Sort by confidence score (highest first)
-        sites = sites.sort((a: any, b: any) => {
-          const confidenceA = parseFloat((a.confidence || '0').toString()) || 0;
-          const confidenceB = parseFloat((b.confidence || '0').toString()) || 0;
-          return confidenceB - confidenceA;
-        });
-      }
-      
+      const { limit } = z.object({ limit: z.number().optional() }).parse(req.query);
+      const sites = await storage.getDiscoveredSites(limit || 50);
       res.json({
         success: true,
         sites: sites,
@@ -950,26 +558,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/discovery/pending", isAdmin, async (req, res) => {
     try {
-      const precision = req.query.precision === 'true';
-      const limit = parseInt(req.query.limit as string) || 50;
-      
-      let pendingSites;
-      if (precision) {
-        // Use precision filter for authentic deals only
-        const { precisionFilter } = await import('./services/precisionFilter');
-        const authenticSites = await precisionFilter.getAuthenticDeals(limit);
-        pendingSites = authenticSites.filter(site => site.status !== 'approved');
-      } else {
-        // Get all pending sites
-        pendingSites = await storage.getPendingDiscoveredSites();
-        // Sort by confidence score (highest first)
-        pendingSites = pendingSites.sort((a, b) => {
-          const confidenceA = parseFloat(a.confidence) || 0;
-          const confidenceB = parseFloat(b.confidence) || 0;
-          return confidenceB - confidenceA;
-        });
-      }
-      
+      const { limit } = z.object({ limit: z.number().optional() }).parse(req.query);
+      const pendingSites = await storage.getPendingDiscoveredSites(limit || 50);
       res.json({
         success: true,
         sites: pendingSites,
@@ -984,12 +574,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Simple approve/reject endpoints
+  app.post("/api/admin/deals/:id/approve", isAdmin, async (req, res) => {
+    try {
+      const { id } = z.object({ id: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+      
+      const updatedSite = await storage.updateDiscoveredSite(id, { 
+        status: 'approved',
+        reviewedAt: new Date(),
+        reviewedBy: 'admin'
+      });
+      
+      res.json({
+        success: true,
+        message: 'Deal approved successfully',
+        site: updatedSite
+      });
+    } catch (error) {
+      console.error("Error approving deal:", (error as Error).message);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  app.post("/api/admin/deals/:id/reject", isAdmin, async (req, res) => {
+    try {
+      const { id } = z.object({ id: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+      
+      const updatedSite = await storage.updateDiscoveredSite(id, { 
+        status: 'rejected',
+        reviewedAt: new Date(),
+        reviewedBy: 'admin'
+      });
+      
+      res.json({
+        success: true,
+        message: 'Deal rejected successfully',
+        site: updatedSite
+      });
+    } catch (error) {
+      console.error("Error rejecting deal:", (error as Error).message);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
   app.put("/api/admin/discovery/sites/:id", isAdmin, async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = z.object({ id: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
       const updates = req.body;
       
-      const updatedSite = await storage.updateDiscoveredSite(parseInt(id), updates);
+      const updatedSite = await storage.updateDiscoveredSite(id, updates);
       
       res.json({
         success: true,
@@ -1042,17 +681,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/admin/discover-deals', isAdmin, async (req, res) => {
     try {
       console.log('🔍 Starting enhanced deal discovery...');
+      const { enhancedDealDiscoveryService } = await import('./services/enhancedDealDiscovery');
       const discoveredDeals = await enhancedDealDiscoveryService.discoverAllDeals();
       await enhancedDealDiscoveryService.saveDiscoveredDeals(discoveredDeals);
       
-      res.json({ 
+      res.json({
         success: true, 
         deals: discoveredDeals,
         count: discoveredDeals.length 
       });
     } catch (error) {
       console.error('Enhanced deal discovery failed:', (error as Error).message);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false, 
         error: 'Failed to discover deals',
         details: (error as Error).message
@@ -1062,15 +702,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/admin/deals', isAdmin, async (req, res) => {
     try {
+      const { enhancedDealDiscoveryService } = await import('./services/enhancedDealDiscovery');
       const deals = await enhancedDealDiscoveryService.getDiscoveredDeals();
-      res.json({ 
+      res.json({
         success: true, 
         deals,
         count: deals.length 
       });
     } catch (error) {
       console.error('Failed to load discovered deals:', (error as Error).message);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false, 
         error: 'Failed to load discovered deals',
         details: (error as Error).message
@@ -1080,14 +721,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/admin/deals/:dealId/approve', isAdmin, async (req, res) => {
     try {
-      const { dealId } = req.params;
+      const { dealId } = z.object({ dealId: z.string() }).parse(req.params);
       const { imageAssetPath } = req.body;
       
+      const { enhancedDealDiscoveryService } = await import('./services/enhancedDealDiscovery');
       await enhancedDealDiscoveryService.approveDeal(dealId, imageAssetPath);
       res.json({ success: true, message: 'Deal approved successfully' });
     } catch (error) {
       console.error('Failed to approve deal:', (error as Error).message);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false, 
         error: 'Failed to approve deal',
         details: (error as Error).message
@@ -1097,12 +739,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/admin/deals/:dealId/reject', isAdmin, async (req, res) => {
     try {
-      const { dealId } = req.params;
+      const { dealId } = z.object({ dealId: z.string() }).parse(req.params);
+      const { enhancedDealDiscoveryService } = await import('./services/enhancedDealDiscovery');
       await enhancedDealDiscoveryService.rejectDeal(dealId);
       res.json({ success: true, message: 'Deal rejected successfully' });
     } catch (error) {
       console.error('Failed to reject deal:', (error as Error).message);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false, 
         error: 'Failed to reject deal',
         details: (error as Error).message
@@ -1165,11 +808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/admin/migration/test-deals', isAdmin, async (req, res) => {
     try {
-      const { dealIds } = req.body;
-      if (!Array.isArray(dealIds)) {
-        return res.status(400).json({ error: 'dealIds must be an array' });
-      }
-      
+      const { dealIds } = z.object({ dealIds: z.array(z.string()) }).parse(req.body);
       const deletedCount = await dealMigrationService.removeTestDeals(dealIds);
       res.json({ success: true, deletedCount });
     } catch (error) {
@@ -1229,11 +868,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/admin/deal-monitor/interval', isAdmin, async (req, res) => {
     try {
-      const { minutes } = req.body;
-      if (!minutes || minutes < 5) {
-        return res.status(400).json({ error: 'Interval must be at least 5 minutes' });
-      }
-      
+      const { minutes } = z.object({ minutes: z.number().min(5) }).parse(req.body);
       realTimeDealMonitor.setInterval(minutes);
       res.json({ success: true, message: `Interval set to ${minutes} minutes` });
     } catch (error) {
@@ -1242,48 +877,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // MLB API endpoints for real-time game data
-  app.get('/api/mlb/games/today', async (req, res) => {
-    try {
-      const games = await mlbApiService.getTodaysGames();
-      res.json(games);
-    } catch (error) {
-      console.error("Error fetching today's games:", (error as Error).message);
-      res.status(500).json({ error: "Failed to fetch today's games" });
-    }
-  });
 
-  app.post('/api/mlb/games/process', isAuthenticated, async (req, res) => {
-    try {
-      const result = await gameProcessor.triggerManualProcess();
-      res.json(result);
-    } catch (error) {
-      console.error("Error processing games:", (error as Error).message);
-      res.status(500).json({ error: "Failed to process games" });
-    }
-  });
-
-  app.get('/api/mlb/games/status', isAuthenticated, async (req, res) => {
-    try {
-      const status = gameProcessor.getStatus();
-      res.json(status);
-    } catch (error) {
-      console.error("Error getting game processor status:", (error as Error).message);
-      res.status(500).json({ error: "Failed to get status" });
-    }
-  });
-
-  app.get('/api/mlb/teams', async (req, res) => {
-    try {
-      const teams = await mlbApiService.getAllMLBTeams();
-      res.json(teams);
-    } catch (error) {
-      console.error("Error fetching MLB teams:", (error as Error).message);
-      res.status(500).json({ error: "Failed to fetch MLB teams" });
-    }
-  });
-
-  // ====== DEAL PAGE ENDPOINTS ======
+  // ====== DEAL PAGE ENDPOINTS ====== 
   
   // Deal Page Routes
   app.post("/api/admin/deal-pages", isAdmin, async (req, res) => {
@@ -1308,7 +903,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/deal-pages/:slug", async (req, res) => {
     try {
-      const dealPage = await storage.getDealPage(req.params.slug);
+      const { slug } = z.object({ slug: z.string() }).parse(req.params);
+      const dealPage = await storage.getDealPage(slug);
       if (!dealPage) {
         return res.status(404).json({ error: "Deal page not found" });
       }
@@ -1331,7 +927,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/admin/deal-pages/:id", isAdmin, async (req, res) => {
     try {
-      const dealPage = await storage.updateDealPage(parseInt(req.params.id), req.body);
+      const { id } = z.object({ id: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+      const dealPage = await storage.updateDealPage(id, req.body);
       res.json(dealPage);
     } catch (error) {
       console.error("Error updating deal page:", (error as Error).message);
@@ -1341,7 +938,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/admin/deal-pages/:id", isAdmin, async (req, res) => {
     try {
-      await storage.deleteDealPage(parseInt(req.params.id));
+      const { id } = z.object({ id: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+      await storage.deleteDealPage(id);
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting deal page:", (error as Error).message);
@@ -1363,7 +961,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         discoveredSiteId: siteId,
       });
       
-      res.json({ 
+      res.json({
         success: true, 
         dealPage,
         message: `Deal page created: /deal/${dealPage.slug}` 
@@ -1377,7 +975,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single discovered site
   app.get("/api/admin/discovery/sites/:siteId", isAdmin, async (req, res) => {
     try {
-      const siteId = parseInt(req.params.siteId);
+      const { siteId } = z.object({ siteId: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
       const site = await storage.getDiscoveredSite(siteId);
       
       if (!site) {
@@ -1394,7 +992,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Deal extraction endpoints
   app.post("/api/admin/discovery/extract-deal/:siteId", isAdmin, async (req, res) => {
     try {
-      const siteId = parseInt(req.params.siteId);
+      const { siteId } = z.object({ siteId: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
       
       // Try simple extraction first (more reliable)
       const { simpleExtractionEngine } = await import('./services/simpleExtraction');
@@ -1404,7 +1002,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Could not extract deal from this site" });
       }
       
-      res.json({ 
+      res.json({
         success: true, 
         extractedDeal,
         message: "Deal extracted successfully" 
@@ -1417,12 +1015,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/admin/discovery/batch-extract", isAdmin, async (req, res) => {
     try {
-      const { limit = 5 } = req.body;
+      const { limit } = z.object({ limit: z.number().optional() }).parse(req.body);
       const { dealExtractionEngine } = await import('./services/dealExtractionEngine');
       
       const enhancedCount = await dealExtractionEngine.batchEnhanceDiscoveredSites(limit);
       
-      res.json({ 
+      res.json({
         success: true, 
         enhancedCount,
         message: `Enhanced ${enhancedCount} discovered deals` 
@@ -1436,10 +1034,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test endpoint for direct URL extraction
   app.post("/api/admin/discovery/test-extract", isAdmin, async (req, res) => {
     try {
-      const { url } = req.body;
-      if (!url) {
-        return res.status(400).json({ error: "URL is required" });
-      }
+      const { url } = z.object({ url: z.string().url() }).parse(req.body);
       
       // Try simple extraction first (more reliable)
       const { simpleExtractionEngine } = await import('./services/simpleExtraction');
@@ -1449,7 +1044,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Could not extract deal from this URL" });
       }
       
-      res.json({ 
+      res.json({
         success: true, 
         extractedDeal,
         message: "Deal extracted successfully" 
@@ -1463,8 +1058,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin MLB analytics endpoints
   app.get('/api/admin/mlb/recent-games/:teamId', isAdmin, async (req, res) => {
     try {
-      const { teamId } = req.params;
-      const limit = parseInt(req.query.limit as string) || 10;
+      const { teamId } = z.object({ teamId: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+      const { limit } = z.object({ limit: z.string().regex(/^\d+$/).transform(Number).optional() }).parse(req.query);
       
       // Get recent games from database
       const recentGames = await db.select({
@@ -1478,9 +1073,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         gameStats: games.gameStats,
         externalId: games.externalId
       }).from(games)
-        .where(eq(games.teamId, parseInt(teamId)))
+        .where(eq(games.teamId, teamId))
         .orderBy(desc(games.gameDate))
-        .limit(limit);
+        .limit(limit || 10);
 
       res.json(recentGames);
     } catch (error) {
@@ -1491,8 +1086,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/admin/mlb/upcoming-games/:teamId', isAdmin, async (req, res) => {
     try {
-      const { teamId } = req.params;
-      const team = await db.select().from(teams).where(eq(teams.id, parseInt(teamId))).limit(1);
+      const { teamId } = z.object({ teamId: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+      const team = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1);
       
       if (!team.length) {
         return res.status(404).json({ error: "Team not found" });
@@ -1557,17 +1152,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/admin/mlb/analytics/:teamId', isAdmin, async (req, res) => {
     try {
-      const { teamId } = req.params;
-      const days = parseInt(req.query.days as string) || 30;
+      const { teamId } = z.object({ teamId: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+      const { days } = z.object({ days: z.string().regex(/^\d+$/).transform(Number).optional() }).parse(req.query);
       
       // Get team analytics
       const teamGames = await db.select().from(games)
         .where(and(
-          eq(games.teamId, parseInt(teamId)),
+          eq(games.teamId, teamId),
           eq(games.isComplete, true)
         ))
         .orderBy(desc(games.gameDate))
-        .limit(days);
+        .limit(days || 30);
 
       const analytics = {
         totalGames: teamGames.length,
@@ -1594,5 +1189,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // gameProcessor.start(); // Temporarily disabled for testing
 
   const httpServer = createServer(app);
+  
+  // Setup Socket.IO for real-time agent monitoring
+  const io = new SocketIOServer(httpServer, {
+    cors: {
+      origin: process.env.NODE_ENV === "development" ? "http://localhost:5173" : false,
+      methods: ["GET", "POST"]
+    }
+  });
+  
+  // Setup WebSocket events for agent orchestrator
+  setupWebSocketEvents(io);
+  
   return httpServer;
 }

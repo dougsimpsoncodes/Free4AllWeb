@@ -6,9 +6,6 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Serve static files from public directory
-app.use(express.static('public'));
-
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -50,6 +47,9 @@ app.use((req, res, next) => {
   }
 
   const server = await registerRoutes(app);
+
+  // Serve static files from public directory
+  app.use(express.static('public'));
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

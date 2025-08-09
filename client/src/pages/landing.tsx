@@ -1,254 +1,293 @@
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Utensils, Bell, Trophy, CheckCircle, Clock, MapPin } from "lucide-react";
+import { Utensils, Bell, Trophy, CheckCircle, Star, Shield, Zap } from "lucide-react";
 import { Link } from "wouter";
-import RestaurantLogo from "@/components/RestaurantLogo";
-import FoodImage from "@/components/FoodImage";
-import DemoModeToggle from "@/components/DemoModeToggle";
 import AdminToggle from "@/components/AdminToggle";
-import EnhancedActiveDeals from "@/components/EnhancedActiveDeals";
 
 export default function Landing() {
-  const [demoMode, setDemoMode] = useState(false);
-  
   // Set document title
   useEffect(() => {
-    document.title = "Free4All - Never Miss Another Deal";
+    document.title = "Free4All - Get Food Deals When Your Team Wins";
   }, []);
 
-  const handleLogin = () => {
-    window.location.href = "/api/auth/google";
+  const handleSignup = () => {
+    window.location.href = "/signup";
   };
-
-  // Active deals using authentic promotional materials
-  const activeDealExamples = [
-    {
-      restaurant: "McDonald's",
-      food: "mcnuggets",
-      status: "ACTIVE NOW",
-      timeLeft: "18 hours left"
-    },
-    {
-      restaurant: "Panda Express", 
-      food: "panda plate",
-      status: "ACTIVE NOW",
-      timeLeft: "22 hours left"
-    },
-    {
-      restaurant: "Jack in the Box",
-      food: "jumbo jack",
-      status: "ACTIVE NOW",
-      timeLeft: "14 hours left"
-    }
-  ];
-
-  // Demo mode: Show authenticated experience
-  if (demoMode) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <DemoModeToggle onToggle={setDemoMode} />
-        <AdminToggle />
-        
-        {/* Header with demo user info */}
-        <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">🍔</span>
-                <h1 className="text-xl font-bold">Free4All</h1>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">
-                  Welcome, Demo User!
-                </span>
-                <Badge variant="outline">Demo Mode</Badge>
-              </div>
-            </div>
-          </div>
-        </nav>
-
-        <div className="max-w-7xl mx-auto px-4 py-8">
-          <EnhancedActiveDeals />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-white">
-      <DemoModeToggle onToggle={setDemoMode} />
       <AdminToggle />
       
       {/* Header */}
       <nav className="bg-gradient-to-r from-green-600 to-blue-600 shadow-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-center items-center h-12">
+          <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
               <Utensils className="text-white h-8 w-8" />
               <span className="text-2xl font-bold text-white">Free4All</span>
             </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* Hero Section - Food First */}
-      <div className="bg-gradient-to-br from-gray-800 to-gray-900 py-6 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-4">
-            <h1 className="text-2xl font-bold text-white mb-2">
-              Never Miss Another Deal
-            </h1>
-            <p className="text-base text-gray-300 mb-4">
-              Get instant alerts for food deals when teams win
-            </p>
             <Link href="/signup">
-              <Button 
-                size="lg" 
-                className="bg-white text-green-600 hover:bg-gray-100 px-8 py-4 text-lg font-semibold rounded-full"
-              >
+              <Button variant="secondary" size="sm">
                 Sign Up
               </Button>
             </Link>
           </div>
         </div>
-      </div>
+      </nav>
 
-      {/* Active Deals Showcase */}
-      <div className="py-12 bg-white">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">🔥 Active Deals Right Now</h2>
-          </div>
-
-          {/* Clean promotional images - Mobile-first full-width design */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
-            {activeDealExamples.map((deal, index) => (
-              <div key={index} className="w-full">
-                {/* Promotional Image - Dynamically sized for optimal mobile readability */}
-                <FoodImage 
-                  foodItem={deal.food}
-                  restaurantName={deal.restaurant}
-                  className="w-full h-auto min-h-[280px] sm:min-h-[320px] md:h-64 object-contain bg-white rounded-lg shadow-xl hover:shadow-2xl transition-shadow duration-300 cursor-pointer border border-gray-900"
-                  alt={`${deal.restaurant} promotional deal`}
-                />
-              </div>
-            ))}
+      {/* Hero Section */}
+      <div className="bg-gradient-to-br from-blue-600 via-purple-600 to-green-600 py-20 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <Badge className="mb-4 bg-white/20 text-white border-white/30">
+              🎯 Smart Deal Discovery
+            </Badge>
+            <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
+              Your Team Wins.<br />You Eat Free.
+            </h1>
+            <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+              Get instant notifications for food deals when the Dodgers win, score big, or hit milestones. 
+              Never miss another victory meal!
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
+              <Button 
+                onClick={handleSignup}
+                size="lg" 
+                className="bg-white text-blue-600 hover:bg-gray-100 px-12 py-6 text-xl font-bold rounded-full shadow-xl"
+              >
+                Get Started Free
+              </Button>
+              <p className="text-white/80 text-sm">
+                No credit card required
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Section Divider */}
-      <div className="border-t border-gray-200"></div>
-
-      {/* How It Works - Visual */}
-      <div className="py-12 bg-gray-50">
+      {/* Value Props */}
+      <div className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">How It Works</h2>
-            <p className="text-lg text-gray-600">Three simple steps</p>
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Why Fans Love Free4All
+            </h2>
+            <p className="text-xl text-gray-600">
+              The smartest way to celebrate your team's victories
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <Card className="border-2 hover:border-green-500 transition-colors">
+              <CardContent className="p-8 text-center">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Zap className="h-8 w-8 text-green-600" />
+                </div>
+                <h3 className="text-xl font-bold mb-3">Instant Alerts</h3>
+                <p className="text-gray-600">
+                  Get notified within seconds when deals activate. Beat the rush!
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 hover:border-blue-500 transition-colors">
+              <CardContent className="p-8 text-center">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trophy className="h-8 w-8 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-bold mb-3">Team-Triggered</h3>
+                <p className="text-gray-600">
+                  Deals activate based on real game events - wins, runs, strikeouts & more
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 hover:border-purple-500 transition-colors">
+              <CardContent className="p-8 text-center">
+                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Star className="h-8 w-8 text-purple-600" />
+                </div>
+                <h3 className="text-xl font-bold mb-3">Major Chains</h3>
+                <p className="text-gray-600">
+                  McDonald's, Panda Express, Jack in the Box, and more partners
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* How It Works */}
+      <div className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              How It Works
+            </h2>
+            <p className="text-xl text-gray-600">
+              Three simple steps to victory meals
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Trophy className="h-5 w-5 text-blue-600" />
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 text-white text-2xl font-bold shadow-lg">
+                1
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">1. Your Team Wins</h3>
-              <p className="text-sm text-gray-600">
-                Or other qualifying activities and you win, too!
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Choose Your Team</h3>
+              <p className="text-gray-600">
+                Select the Dodgers and any other LA teams you follow
               </p>
             </div>
 
             <div className="text-center">
-              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Bell className="h-5 w-5 text-green-600" />
+              <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-white text-2xl font-bold shadow-lg">
+                2
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">2. Get Instant Alert</h3>
-              <p className="text-sm text-gray-600">
-                Immediate email with deal details and promo codes
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Team Achieves Trigger</h3>
+              <p className="text-gray-600">
+                Win games, score runs, hit milestones - deals activate automatically
               </p>
             </div>
 
             <div className="text-center">
-              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Utensils className="h-5 w-5 text-orange-600" />
+              <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6 text-white text-2xl font-bold shadow-lg">
+                3
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">3. Claim Your Deal</h3>
-              <p className="text-sm text-gray-600">
-                We make it easy to get your deal
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Get Your Food</h3>
+              <p className="text-gray-600">
+                Receive instant alert with promo codes and instructions
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Section Divider */}
-      <div className="border-t border-gray-200"></div>
-
-      {/* Popular Restaurants */}
-      <div className="py-12 bg-white">
+      {/* Example Deals */}
+      <div className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Partner Restaurants</h2>
-            <p className="text-lg text-gray-600">Get deals from your favorite spots</p>
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Popular Victory Deals
+            </h2>
+            <p className="text-xl text-gray-600">
+              Restaurants that celebrate with you
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
-            <div className="text-center p-6 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors">
-              <div className="flex justify-center mb-4">
-                <RestaurantLogo restaurantName="McDonald's" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Card className="overflow-hidden hover:shadow-xl transition-shadow">
+              <div className="bg-gradient-to-br from-red-500 to-yellow-500 p-6 text-white">
+                <h3 className="text-2xl font-bold mb-2">McDonald's</h3>
+                <p className="text-white/90">Free McNuggets</p>
               </div>
-              <h3 className="font-bold text-gray-900">McDonald's</h3>
-            </div>
-            <div className="text-center p-6 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
-              <div className="flex justify-center mb-4">
-                <RestaurantLogo restaurantName="Panda Express" />
+              <CardContent className="p-6">
+                <p className="text-sm text-gray-600 mb-3">Activates when:</p>
+                <ul className="space-y-2">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">Dodgers score 6+ runs</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">Via mobile app</span>
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden hover:shadow-xl transition-shadow">
+              <div className="bg-gradient-to-br from-orange-500 to-red-500 p-6 text-white">
+                <h3 className="text-2xl font-bold mb-2">Panda Express</h3>
+                <p className="text-white/90">Discounted Plate</p>
               </div>
-              <h3 className="font-bold text-gray-900">Panda Express</h3>
-            </div>
-            <div className="text-center p-6 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
-              <div className="flex justify-center mb-4">
-                <RestaurantLogo restaurantName="Del Taco" />
+              <CardContent className="p-6">
+                <p className="text-sm text-gray-600 mb-3">Activates when:</p>
+                <ul className="space-y-2">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">Dodgers win at home</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">Online ordering</span>
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden hover:shadow-xl transition-shadow">
+              <div className="bg-gradient-to-br from-blue-500 to-purple-500 p-6 text-white">
+                <h3 className="text-2xl font-bold mb-2">Jack in the Box</h3>
+                <p className="text-white/90">Free Jumbo Jack</p>
               </div>
-              <h3 className="font-bold text-gray-900">Del Taco</h3>
-            </div>
-            <div className="text-center p-6 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-              <div className="flex justify-center mb-4">
-                <RestaurantLogo restaurantName="ampm" />
-              </div>
-              <h3 className="font-bold text-gray-900">ampm</h3>
-            </div>
-            <div className="text-center p-6 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors">
-              <div className="flex justify-center mb-4">
-                <RestaurantLogo restaurantName="Jack in the Box" />
-              </div>
-              <h3 className="font-bold text-gray-900">Jack in the Box</h3>
-            </div>
+              <CardContent className="p-6">
+                <p className="text-sm text-gray-600 mb-3">Activates when:</p>
+                <ul className="space-y-2">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">7+ strikeouts</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">With drink purchase</span>
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
 
-      {/* Section Divider */}
-      <div className="border-t border-gray-200"></div>
+      {/* Trust Indicators */}
+      <div className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+            <div>
+              <Shield className="h-12 w-12 text-green-600 mx-auto mb-4" />
+              <h3 className="font-bold text-lg mb-2">Privacy First</h3>
+              <p className="text-gray-600 text-sm">
+                We never share your data or spam you
+              </p>
+            </div>
+            <div>
+              <Bell className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+              <h3 className="font-bold text-lg mb-2">Smart Alerts</h3>
+              <p className="text-gray-600 text-sm">
+                Only get notified for deals you care about
+              </p>
+            </div>
+            <div>
+              <Star className="h-12 w-12 text-purple-600 mx-auto mb-4" />
+              <h3 className="font-bold text-lg mb-2">100% Free</h3>
+              <p className="text-gray-600 text-sm">
+                No hidden fees, no premium tiers
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Final CTA */}
-      <div className="bg-gradient-to-r from-green-600 to-blue-600 text-white py-16">
+      <div className="bg-gradient-to-r from-green-600 to-blue-600 text-white py-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold mb-4">Join Thousands of Smart Fans</h2>
-          <p className="text-lg text-blue-100 mb-6">
-            Join thousands of fans who get deals when their teams win
+          <h2 className="text-4xl font-bold mb-6">
+            Ready to Win & Eat?
+          </h2>
+          <p className="text-xl text-blue-100 mb-8">
+            Join thousands of fans who never miss a victory meal
           </p>
           <Button 
-            onClick={handleLogin}
+            onClick={handleSignup}
             size="lg"
-            className="bg-white text-green-600 hover:bg-gray-100 px-12 py-4 text-xl font-bold rounded-full"
+            className="bg-white text-green-600 hover:bg-gray-100 px-12 py-6 text-2xl font-bold rounded-full shadow-xl"
           >
-            Sign Up
+            Start Free Today
           </Button>
-          <p className="text-blue-100 mt-4 text-sm">
-            Free to join • Instant alerts • No spam, just deals
+          <p className="text-blue-100 mt-6 text-sm">
+            ✓ Instant setup &nbsp;&nbsp; ✓ No credit card &nbsp;&nbsp; ✓ Cancel anytime
           </p>
         </div>
       </div>

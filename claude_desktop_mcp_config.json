@@ -1,0 +1,49 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/dougsimpson/Projects/Free4AllWeb"
+      ]
+    },
+    "postgres": {
+      "command": "npx",
+      "args": ["postgres-mcp"],
+      "env": {
+        "DATABASE_URL": "postgresql://username:password@localhost:5432/free4allweb_development"
+      }
+    },
+    "reddit": {
+      "command": "npx",
+      "args": ["reddit-mcp"],
+      "env": {
+        "REDDIT_CLIENT_ID": "your_reddit_client_id",
+        "REDDIT_CLIENT_SECRET": "your_reddit_client_secret",
+        "REDDIT_USER_AGENT": "Free4AllWeb/1.0 by /u/yourusername"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    },
+    "sms": {
+      "command": "npx",
+      "args": ["@yiyang.1i/sms-mcp-server"],
+      "env": {
+        "TWILIO_ACCOUNT_SID": "your_twilio_account_sid",
+        "TWILIO_AUTH_TOKEN": "your_twilio_auth_token",
+        "TWILIO_FROM_NUMBER": "your_twilio_phone_number"
+      }
+    },
+    "slack": {
+      "command": "npx",
+      "args": ["slack-mcp-server", "--transport", "stdio"],
+      "env": {
+        "SLACK_TOKEN": "your_slack_bot_token",
+        "SLACK_MCP_ADD_MESSAGE_TOOL": "true"
+      }
+    }
+  }
+}

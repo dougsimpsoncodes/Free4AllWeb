@@ -6,6 +6,7 @@ import { Settings, BarChart3, Database, ChevronDown, Bell } from "lucide-react";
 export default function AdminToggle() {
   const [isOpen, setIsOpen] = useState(false);
 
+  // SIMPLIFIED - ONLY 4 CORE ADMIN SECTIONS
   const adminLinks = [
     {
       href: "/home",
@@ -15,45 +16,21 @@ export default function AdminToggle() {
     },
     {
       href: "/admin",
-      label: "Pattern Discovery",
+      label: "Admin Dashboard", 
       icon: Database,
-      description: "AI-based deal patterns"
+      description: "Core admin controls"
     },
     {
-      href: "/deal-discovery",
-      label: "Deal Discovery",
-      icon: Database,
-      description: "AI-powered precision deal discovery"
-    },
-    {
-      href: "/admin/dashboard", 
-      label: "MLB Analytics",
+      href: "/admin/analytics",
+      label: "User Analytics",
       icon: BarChart3,
-      description: "Game processing & analytics"
-    },
-    {
-      href: "/analytics",
-      label: "Game Analytics", 
-      icon: BarChart3,
-      description: "Team performance data"
-    },
-    {
-      href: "/admin/migration",
-      label: "Deal Migration", 
-      icon: Database,
-      description: "Manage test vs discovered deals"
+      description: "User data & system health"
     },
     {
       href: "/notifications",
       label: "Notifications",
       icon: Bell,
       description: "Manage alert preferences"
-    },
-    {
-      href: "/game-scheduling-test",
-      label: "Game Scheduling",
-      icon: BarChart3,
-      description: "Test pre/post game alerts"
     }
   ];
 
