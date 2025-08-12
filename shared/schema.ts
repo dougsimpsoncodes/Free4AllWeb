@@ -119,7 +119,8 @@ export const promotions = pgTable("promotions", {
   triggerCondition: varchar("trigger_condition", { length: 200 }).notNull(),
   redemptionInstructions: text("redemption_instructions"),
   promoCode: varchar("promo_code", { length: 50 }),
-  validUntil: date("valid_until"),
+  // Force string-mode for DATE (expects 'YYYY-MM-DD')
+  validUntil: date("valid_until", { mode: "string" }),
   isActive: boolean("is_active").default(true),
   isSeasonal: boolean("is_seasonal").default(false),
   // Deal source tracking
@@ -127,8 +128,10 @@ export const promotions = pgTable("promotions", {
   discoveryData: jsonb("discovery_data"), // Store discovery metadata
   approvalStatus: varchar("approval_status", { length: 20 }).default("approved"), // pending, approved, rejected
   approvedBy: varchar("approved_by", { length: 100 }),
-  approvedAt: timestamp("approved_at"),
-  createdAt: timestamp("created_at").defaultNow(),
+  // Force Date-mode for TIMESTAMP (expects JS Date)
+  approvedAt: timestamp("approved_at", { mode: "date" }),
+  // Force Date-mode for TIMESTAMP defaults too
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
 });
 
 // Games
@@ -405,3 +408,27 @@ export type DiscoveredSite = typeof discoveredSites.$inferSelect;
 export type InsertDiscoveredSite = z.infer<typeof insertDiscoveredSiteSchema>;
 export type DealPage = typeof dealPages.$inferSelect;
 export type InsertDealPage = z.infer<typeof insertDealPageSchema>;
+
+// Device Tokens for Push Notifications
+export const deviceTokens = pgTable("device_tokens", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  deviceToken: varchar("device_token", { length: 200 }).notNull().unique(),
+  platform: varchar("platform", { length: 10 }).notNull(), // 'ios', 'android', 'web'
+  deviceInfo: jsonb("device_info").$type<{
+    model?: string;
+    osVersion?: string;
+    appVersion?: string;
+  }>(),
+  isActive: boolean("is_active").default(true),
+  lastUsed: timestamp("last_used").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_device_tokens_user").on(table.userId),
+  index("idx_device_tokens_active").on(table.isActive),
+  index("idx_device_tokens_platform").on(table.platform),
+]);
+
+export const insertDeviceTokenSchema = createInsertSchema(deviceTokens);
+export type DeviceToken = typeof deviceTokens.$inferSelect;
+export type InsertDeviceToken = z.infer<typeof insertDeviceTokenSchema>;

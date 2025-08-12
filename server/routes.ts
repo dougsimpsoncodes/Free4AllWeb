@@ -2,10 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, isAdmin, csrfProtection } from "./googleAuth";
+import { setupAuth, isAuthenticated, isAdmin, csrfProtection } from "./clerkAuth";
 import { mlbApiService } from "./services/mlbApiService";
 import { gameProcessor } from "./services/gameProcessor";
-import { db } from "./db";
+import { db } from "./supabaseDb";
 import { games, teams, promotions, restaurants, triggeredDeals } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { realTimeDealMonitor } from "./services/realTimeDealMonitor";
@@ -20,10 +20,10 @@ import { gameScrapingService } from "./services/gameScrapingService";
 import { notificationService } from "./services/notificationService";
 import { registerNotificationRoutes } from "./routes/notifications";
 import { registerGameSchedulingRoutes } from "./routes/gameScheduling";
-import { agentsRouter, setupWebSocketEvents } from "./src/routes/agents";
 import { Server as SocketIOServer } from "socket.io";
 import { insertAlertPreferenceSchema, insertPromotionSchema, insertTeamSchema, insertRestaurantSchema } from "@shared/schema";
 import { config } from "./config";
+import multer from 'multer';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -35,22 +35,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register game scheduling routes
   registerGameSchedulingRoutes(app);
   
-  // Register agent orchestration routes
-  app.use('/api/agents', agentsRouter);
+  // Agent routes removed - fake system eliminated
   
   // Register deal verification routes
   const dealVerificationRoutes = await import("./routes/dealVerification");
   app.use('/api/deal-verification', isAuthenticated, dealVerificationRoutes.default);
   
-  // Serve logos directly
+  // Serve logos directly - SECURITY: Path traversal protection
   app.get('/logos/:filename', (req, res) => {
-    const filename = req.params.filename;
+    const filename = path.basename(req.params.filename); // Prevent path traversal
+    
+    // Validate filename format (alphanumeric, dots, dashes, underscores only)
+    if (!/^[a-zA-Z0-9._-]+\.(png|jpg|jpeg|gif|svg|webp)$/i.test(filename)) {
+      return res.status(400).send('Invalid filename format');
+    }
+    
     const logoPath = path.join(process.cwd(), 'public', 'logos', filename);
     
+    // Ensure the resolved path is still within the logos directory
+    const logosDir = path.join(process.cwd(), 'public', 'logos');
+    if (!logoPath.startsWith(logosDir)) {
+      return res.status(403).send('Access denied');
+    }
+    
     if (fs.existsSync(logoPath)) {
-      res.sendFile(logoPath);
+      res.sendFile(path.resolve(logoPath));
     } else {
       res.status(404).send('Logo not found');
+    }
+  });
+
+  // Serve uploaded deal images - SECURITY: Path traversal protection
+  app.get('/uploads/deals/:filename', (req, res) => {
+    const filename = path.basename(req.params.filename); // Prevent path traversal
+    
+    // Validate filename format (alphanumeric, dots, dashes, underscores only)
+    if (!/^[a-zA-Z0-9._-]+\.(png|jpg|jpeg|gif|webp)$/i.test(filename)) {
+      return res.status(400).send('Invalid filename format');
+    }
+    
+    const imagePath = path.join(process.cwd(), 'uploads', 'deals', filename);
+    
+    // Ensure the resolved path is still within the uploads/deals directory
+    const uploadsDir = path.join(process.cwd(), 'uploads', 'deals');
+    if (!imagePath.startsWith(uploadsDir)) {
+      return res.status(403).send('Access denied');
+    }
+    
+    if (fs.existsSync(imagePath)) {
+      res.sendFile(path.resolve(imagePath));
+    } else {
+      res.status(404).send('Image not found');
     }
   });
 
@@ -303,7 +338,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/sync-games/:teamId', isAdmin, async (req: any, res) => {
     try {
       const { teamId } = z.object({ teamId: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+      console.log(`ROUTE: Sync games called for team ${teamId}`);
       await promotionService.syncRecentGames(teamId);
+      console.log(`ROUTE: Sync games completed for team ${teamId}`);
       res.json({ message: "Games synced successfully" });
     } catch (error) {
       console.error("Error syncing games:", (error as Error).message);
@@ -411,6 +448,261 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Apple Push Notifications Management
+  app.post('/api/device-token/register', async (req, res) => {
+    try {
+      const { deviceToken, platform, deviceInfo } = z.object({
+        deviceToken: z.string().min(1, 'Device token is required'),
+        platform: z.enum(['ios', 'android', 'web']),
+        deviceInfo: z.object({
+          model: z.string().optional(),
+          osVersion: z.string().optional(),
+          appVersion: z.string().optional()
+        }).optional()
+      }).parse(req.body);
+
+      // For now, use a default user for testing. In production, this would be tied to actual user accounts
+      const userId = 'anonymous_device';
+
+      // Ensure anonymous user exists in database
+      try {
+        await storage.upsertUser({
+          id: userId,
+          email: 'anonymous@free4allweb.com',
+          firstName: 'Anonymous',
+          lastName: 'Device',
+          profileImageUrl: null,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+      } catch (error) {
+        // User might already exist, continue
+        console.log('User creation error (might already exist):', error);
+      }
+
+      await storage.saveDeviceToken(userId, deviceToken, platform, deviceInfo);
+
+      console.log(`Device token registered for user ${userId}: ${platform} device ${deviceToken.substring(0, 8)}***`);
+      
+      res.json({ 
+        success: true, 
+        message: 'Device token registered successfully',
+        platform,
+        deviceInfo
+      });
+    } catch (error) {
+      console.error('Error registering device token:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: error.errors 
+        });
+      }
+      res.status(500).json({ error: 'Failed to register device token' });
+    }
+  });
+
+  app.delete('/api/device-token/deregister', isAuthenticated, async (req, res) => {
+    try {
+      const { deviceToken } = z.object({
+        deviceToken: z.string().min(1, 'Device token is required')
+      }).parse(req.body);
+
+      await storage.deactivateDeviceToken(deviceToken);
+
+      console.log(`Device token deregistered: ${deviceToken.substring(0, 8)}***`);
+      
+      res.json({ 
+        success: true, 
+        message: 'Device token deregistered successfully' 
+      });
+    } catch (error) {
+      console.error('Error deregistering device token:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: error.errors 
+        });
+      }
+      res.status(500).json({ error: 'Failed to deregister device token' });
+    }
+  });
+
+  app.get('/api/device-tokens/my-devices', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.auth?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'User ID not found in auth context' });
+      }
+
+      const iosTokens = await storage.getUserDeviceTokens(userId, 'ios');
+      const androidTokens = await storage.getUserDeviceTokens(userId, 'android');
+      const webTokens = await storage.getUserDeviceTokens(userId, 'web');
+
+      res.json({
+        devices: {
+          ios: iosTokens.length,
+          android: androidTokens.length,
+          web: webTokens.length,
+          total: iosTokens.length + androidTokens.length + webTokens.length
+        },
+        // Don't expose actual tokens for security
+        hasDevices: (iosTokens.length + androidTokens.length + webTokens.length) > 0
+      });
+    } catch (error) {
+      console.error('Error fetching user devices:', error);
+      res.status(500).json({ error: 'Failed to fetch device information' });
+    }
+  });
+
+  app.post('/api/notifications/test', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.auth?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'User ID not found in auth context' });
+      }
+
+      const { notificationService } = await import('./services/notificationService');
+      const result = await notificationService.testNotification(userId);
+
+      res.json({
+        success: true,
+        message: 'Test notification sent',
+        results: result
+      });
+    } catch (error) {
+      console.error('Error sending test notification:', error);
+      res.status(500).json({ error: 'Failed to send test notification' });
+    }
+  });
+
+  app.get('/api/notifications/status', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.auth?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'User ID not found in auth context' });
+      }
+
+      const { notificationService } = await import('./services/notificationService');
+      const preferences = await storage.getUserNotificationPreferences(userId);
+      const status = notificationService.getNotificationStatus();
+
+      res.json({
+        userPreferences: preferences,
+        serviceStatus: status,
+        canReceivePushNotifications: preferences.pushNotifications && status.apns.configured
+      });
+    } catch (error) {
+      console.error('Error fetching notification status:', error);
+      res.status(500).json({ error: 'Failed to fetch notification status' });
+    }
+  });
+
+  // TESTING ENDPOINTS - Remove in production
+  app.get('/api/test/apns-status', async (req, res) => {
+    try {
+      const { notificationService } = await import('./services/notificationService');
+      const status = notificationService.getNotificationStatus();
+      
+      res.json({
+        message: 'APNs Testing Endpoint',
+        status,
+        timestamp: new Date().toISOString(),
+        ready: status.apns.configured
+      });
+    } catch (error) {
+      console.error('Error in test endpoint:', error);
+      res.status(500).json({ error: 'Test endpoint failed' });
+    }
+  });
+
+  app.post('/api/test/device-token', async (req, res) => {
+    try {
+      const { deviceToken, platform = 'ios', userId = 'test_user_123' } = req.body;
+      
+      if (!deviceToken) {
+        return res.status(400).json({ error: 'deviceToken is required' });
+      }
+
+      // For testing - create a test user if doesn't exist
+      try {
+        await storage.saveDeviceToken(userId, deviceToken, platform, {
+          model: 'Test Device',
+          osVersion: '18.0',
+          appVersion: '1.0.0-test'
+        });
+      } catch (error) {
+        console.error('Error saving test device token:', error);
+      }
+
+      console.log(`🧪 TEST: Device token registered - ${platform} device ${deviceToken.substring(0, 8)}***`);
+      
+      res.json({ 
+        success: true, 
+        message: 'Test device token registered',
+        deviceToken: deviceToken.substring(0, 8) + '***',
+        platform,
+        userId
+      });
+    } catch (error) {
+      console.error('Error in test device token endpoint:', error);
+      res.status(500).json({ error: 'Failed to register test device token' });
+    }
+  });
+
+  app.post('/api/test/send-notification', async (req, res) => {
+    try {
+      const { userId = 'anonymous_device', type = 'deal' } = req.body;
+      const { apnsService } = await import('./services/apnsService');
+
+      if (type === 'deal') {
+        const result = await apnsService.sendDealAlert(userId, {
+          teamName: 'LA Dodgers',
+          triggeredDeals: [{
+            id: 999,
+            restaurant: 'Panda Express',
+            offer: '$6 Panda Plate Deal',
+            promoCode: 'DODGERSWIN',
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          }],
+          gameId: 999,
+          totalActiveDeals: 1,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        });
+
+        res.json({
+          success: true,
+          message: 'Test deal notification sent',
+          result,
+          type: 'deal_alert'
+        });
+      } else {
+        const result = await apnsService.sendPreGameAlert(userId, {
+          gameId: 999,
+          homeTeam: 'LA Dodgers',
+          awayTeam: 'San Francisco Giants',
+          gameTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+          venue: 'Dodger Stadium',
+          potentialDeals: [{
+            restaurant: 'Panda Express',
+            offer: '$6 Panda Plate',
+            trigger: 'Dodgers Win'
+          }]
+        });
+
+        res.json({
+          success: true,
+          message: 'Test pre-game notification sent',
+          result,
+          type: 'pre_game_alert'
+        });
+      }
+    } catch (error) {
+      console.error('Error sending test notification:', error);
+      res.status(500).json({ error: 'Failed to send test notification' });
+    }
+  });
+
   // Admin routes for data management
   app.post('/api/admin/seed-data', isAdmin, async (req, res) => {
     try {
@@ -422,16 +714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/admin/seed-demo-games', isAdmin, async (req, res) => {
-    try {
-      const { seedDemoGameData } = await import('./seedGameData');
-      const result = await seedDemoGameData();
-      res.json({ message: 'Demo game data seeded successfully', ...result });
-    } catch (error) {
-      console.error('Error seeding demo game data:', (error as Error).message);
-      res.status(500).json({ message: 'Failed to seed demo game data' });
-    }
-  });
+  // Demo game data seeding removed - was test/mock data
 
   // Scraping and testing routes
   app.post('/api/admin/scrape-all-teams', isAdmin, async (req, res) => {
@@ -540,8 +823,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/discovery/sites", isAdmin, async (req, res) => {
     try {
-      const { limit } = z.object({ limit: z.number().optional() }).parse(req.query);
-      const sites = await storage.getDiscoveredSites(limit || 50);
+      const { limit } = z.object({ limit: z.string().regex(/^\d+$/).transform(Number).optional() }).parse(req.query);
+      const sites = await storage.getDiscoveredSites();
       res.json({
         success: true,
         sites: sites,
@@ -558,7 +841,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/discovery/pending", isAdmin, async (req, res) => {
     try {
-      const { limit } = z.object({ limit: z.number().optional() }).parse(req.query);
+      const { limit } = z.object({ limit: z.string().regex(/^\d+$/).transform(Number).optional() }).parse(req.query);
       const pendingSites = await storage.getPendingDiscoveredSites(limit || 50);
       res.json({
         success: true,
@@ -574,16 +857,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Simple approve/reject endpoints
+  // Simple approve/reject endpoints with structured deal data
   app.post("/api/admin/deals/:id/approve", isAdmin, async (req, res) => {
     try {
       const { id } = z.object({ id: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+      const { dealDetails, sourceUrl } = req.body;
       
+      console.log("=== DEAL APPROVAL ===");
+      console.log("Deal ID:", id);
+      console.log("Source URL:", sourceUrl);
+      console.log("Deal Details:", JSON.stringify(dealDetails, null, 2));
+      console.log("User:", req.user?.email);
+      
+      // Update discovered site as approved
       const updatedSite = await storage.updateDiscoveredSite(id, { 
         status: 'approved',
         reviewedAt: new Date(),
-        reviewedBy: 'admin'
+        reviewedBy: req.user?.id || 'admin'
       });
+      
+      // Store structured deal data (for future automated validation)
+      if (dealDetails) {
+        console.log("Structured Trigger Conditions:");
+        console.log("- Type:", dealDetails.triggerType);
+        console.log("- Conditions:", dealDetails.triggerConditions);
+        console.log("- Logic:", dealDetails.triggerLogic);
+        
+        // TODO: Save structured deal to deals table
+        // await storage.createDeal({
+        //   ...dealDetails,
+        //   discoveredSiteId: id,
+        //   createdBy: req.user?.id
+        // });
+      }
+      
+      console.log("=== APPROVAL COMPLETE ===");
       
       res.json({
         success: true,
@@ -836,6 +1144,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // APNs monitoring endpoint for production
+  app.get('/api/admin/apns/status', isAdmin, async (req, res) => {
+    try {
+      const { apnsService } = await import('./services/apnsService');
+      const status = apnsService.getStatus();
+      
+      res.json({
+        success: true,
+        apns: {
+          configured: status.configured,
+          provider: status.provider,
+          environment: process.env.APNS_ENVIRONMENT || 'sandbox',
+          bundleId: process.env.APNS_BUNDLE_ID || 'not-configured',
+          keyIdMasked: process.env.APNS_KEY_ID ? `${process.env.APNS_KEY_ID.substring(0, 4)}***` : 'not-configured',
+          teamIdMasked: process.env.APNS_TEAM_ID ? `${process.env.APNS_TEAM_ID.substring(0, 4)}***` : 'not-configured'
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error getting APNs status:', (error as Error).message);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to get APNs status',
+        apns: { configured: false }
+      });
+    }
+  });
+
   app.post('/api/admin/deal-monitor/start', isAdmin, async (req, res) => {
     try {
       realTimeDealMonitor.start();
@@ -989,6 +1325,199 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Configure multer for image uploads
+  const uploadsDir = path.join(process.cwd(), 'uploads', 'deals');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+
+  const multerStorage = multer.diskStorage({
+    destination: uploadsDir,
+    filename: (req, file, cb) => {
+      // SECURITY: Generate cryptographically secure filename
+      const crypto = require('crypto');
+      const randomBytes = crypto.randomBytes(16).toString('hex');
+      const timestamp = Date.now();
+      
+      // Sanitize and validate extension
+      const originalExt = path.extname(file.originalname).toLowerCase();
+      const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+      
+      if (!allowedExts.includes(originalExt)) {
+        return cb(new Error('Invalid file extension'), '');
+      }
+      
+      cb(null, `deal-${timestamp}-${randomBytes}${originalExt}`);
+    }
+  });
+
+  const upload = multer({
+    storage: multerStorage,
+    limits: { 
+      fileSize: 1 * 1024 * 1024, // SECURITY: Reduced to 1MB limit
+      files: 1 // Only allow 1 file per upload
+    },
+    fileFilter: (req, file, cb) => {
+      // SECURITY: Strict file validation
+      const allowedMimeTypes = [
+        'image/jpeg',
+        'image/png', 
+        'image/gif',
+        'image/webp'
+      ];
+      
+      const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+      const fileExt = path.extname(file.originalname).toLowerCase();
+      
+      if (!allowedMimeTypes.includes(file.mimetype) || !allowedExts.includes(fileExt)) {
+        return cb(new Error('Only JPEG, PNG, GIF, and WebP images are allowed'));
+      }
+      
+      // Additional filename security check
+      if (file.originalname.includes('..') || file.originalname.includes('/') || file.originalname.includes('\\')) {
+        return cb(new Error('Invalid filename'));
+      }
+      
+      cb(null, true);
+    }
+  });
+
+  // Image upload endpoint for deals
+  app.post("/api/admin/upload-image", isAdmin, upload.single('image'), (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: 'No image file provided'
+        });
+      }
+      
+      // Return the URL path for the uploaded image
+      const imageUrl = `/uploads/deals/${req.file.filename}`;
+      
+      console.log(`Image uploaded: ${req.file.filename} -> ${imageUrl}`);
+      
+      res.json({
+        success: true,
+        url: imageUrl,
+        filename: req.file.filename
+      });
+    } catch (error) {
+      console.error("Error processing image upload:", (error as Error).message);
+      res.status(500).json({
+        success: false,
+        error: "Failed to process image upload"
+      });
+    }
+  });
+
+  // Helper function to detect Date objects deep in payload
+  function findDatesDeep(obj: any, path: string[] = [], hits: string[] = []): string[] {
+    if (obj instanceof Date) hits.push(path.join("."));
+    else if (obj && typeof obj === "object") {
+      for (const k of Object.keys(obj)) findDatesDeep(obj[k], [...path, k], hits);
+    }
+    return hits;
+  }
+
+  // Manual deal creation endpoint
+  app.post("/api/admin/deals/manual", isAdmin, async (req, res) => {
+    try {
+      const { dealDetails } = req.body;
+      
+      console.log("=== MANUAL DEAL CREATION ===");
+      console.log("Deal Details:", JSON.stringify(dealDetails, null, 2));
+      console.log("Created by:", req.user?.email);
+      
+      // Find restaurant and team IDs from names
+      const restaurants = await storage.getActiveRestaurants();
+      const teams = await storage.getActiveTeams();
+      
+      // Simple exact match for restaurant names (UI sends exact database names)
+      const restaurant = restaurants.find(r => r.name === dealDetails.restaurant);
+      const team = teams.find(t => t.name === dealDetails.team);
+      
+      if (!restaurant) {
+        return res.status(400).json({ success: false, error: `Restaurant not found: ${dealDetails.restaurant}` });
+      }
+      
+      if (!team) {
+        return res.status(400).json({ success: false, error: `Team not found: ${dealDetails.team}` });
+      }
+      
+      const payload = {
+        teamId: team.id,
+        restaurantId: restaurant.id,
+        title: dealDetails.offerTitle,
+        triggerCondition: `${dealDetails.triggerType}: ${dealDetails.triggerConditions.map(c => 
+          `${c.stat} ${c.operator} ${c.value} (${c.gameLocation} games)`
+        ).join(` ${dealDetails.triggerLogic} `)}`,
+        source: "manual",
+        validUntil: dealDetails.expirationDate || undefined,
+        promoCode: dealDetails.promoCode || undefined,
+        description: dealDetails.description || undefined,
+        redemptionInstructions: dealDetails.redemptionInstructions || undefined,
+        discoveryData: {
+          imageUrl: dealDetails.imageUrl || null,
+          sourceUrl: dealDetails.sourceUrl || null,
+          createdBy: req.user?.email || 'admin',
+          type: 'manual'
+        },
+        approvalStatus: 'approved',
+        approvedBy: req.user?.email || 'admin',
+        approvedAt: new Date()
+      };
+
+      // Detect any Date objects in payload
+      const dateFields = findDatesDeep(payload);
+      if (dateFields.length) {
+        console.warn("JS Date detected in payload fields:", dateFields);
+      }
+
+      // Try the absolute simplest approach - no dates at all
+      const promotionData: any = {
+        teamId: team.id,
+        restaurantId: restaurant.id,
+        title: dealDetails.offerTitle,
+        triggerCondition: `${dealDetails.triggerType}: ${dealDetails.triggerConditions.map(c => 
+          `${c.stat} ${c.operator} ${c.value} (${c.gameLocation} games)`
+        ).join(` ${dealDetails.triggerLogic} `)}`
+      };
+      
+      // Only add optional fields if they have values (no dates)
+      if (dealDetails.description) promotionData.description = dealDetails.description;
+      if (dealDetails.promoCode) promotionData.promoCode = dealDetails.promoCode;
+      if (dealDetails.redemptionInstructions) promotionData.redemptionInstructions = dealDetails.redemptionInstructions;
+      promotionData.source = 'manual';
+      promotionData.approvalStatus = 'approved';
+      promotionData.approvedBy = req.user?.email || 'admin';
+      
+      console.log("Promotion data being sent:", JSON.stringify(promotionData, null, 2));
+      
+      const promotion = await storage.createPromotion(promotionData);
+      
+      console.log("Created promotion:", promotion.id);
+      console.log("=== MANUAL DEAL CREATION COMPLETE ===");
+      
+      res.json({
+        success: true,
+        message: 'Manual deal created successfully',
+        promotion,
+        details: {
+          restaurant: restaurant.name,
+          team: team.name,
+          trigger: promotion.triggerCondition
+        }
+      });
+    } catch (error) {
+      console.error("Error creating manual deal:", (error as Error).message);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
   // Deal extraction endpoints
   app.post("/api/admin/discovery/extract-deal/:siteId", isAdmin, async (req, res) => {
     try {
@@ -1052,6 +1581,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error testing extraction:", (error as Error).message);
       res.status(500).json({ error: "Failed to extract deal" });
+    }
+  });
+
+  // Clustering and Evidence Storage endpoints
+  app.post('/api/admin/discovery/cluster', isAdmin, async (req, res) => {
+    try {
+      const { teamName, sport } = z.object({
+        teamName: z.string(),
+        sport: z.string()
+      }).parse(req.body);
+
+      const { ClusteringEngine } = await import('./services/clusteringEngine.js');
+      const clustering = new ClusteringEngine();
+      
+      const clusters = await clustering.clusterDiscoveries(teamName, sport);
+      
+      res.json({ 
+        success: true, 
+        clusters,
+        count: clusters.length,
+        timestamp: new Date()
+      });
+    } catch (error) {
+      console.error("Error clustering discoveries:", (error as Error).message);
+      res.status(500).json({ error: "Failed to cluster discoveries" });
+    }
+  });
+
+  app.post('/api/admin/discovery/detect-duplicates', isAdmin, async (req, res) => {
+    try {
+      const { siteIds } = z.object({
+        siteIds: z.array(z.number())
+      }).parse(req.body);
+
+      const { ClusteringEngine } = await import('./services/clusteringEngine.js');
+      const clustering = new ClusteringEngine();
+      
+      const result = await clustering.detectDuplicates(siteIds);
+      
+      res.json({ 
+        success: true, 
+        ...result,
+        timestamp: new Date()
+      });
+    } catch (error) {
+      console.error("Error detecting duplicates:", (error as Error).message);
+      res.status(500).json({ error: "Failed to detect duplicates" });
+    }
+  });
+
+  app.post('/api/admin/discovery/:id/capture-evidence', isAdmin, async (req, res) => {
+    try {
+      const { id } = z.object({ id: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+
+      const { EvidenceStorage } = await import('./services/evidenceStorage.js');
+      const evidenceStorage = new EvidenceStorage();
+      
+      const evidence = await evidenceStorage.captureEvidence(id);
+      
+      res.json({ 
+        success: true, 
+        evidence,
+        timestamp: new Date()
+      });
+    } catch (error) {
+      console.error("Error capturing evidence:", (error as Error).message);
+      res.status(500).json({ error: "Failed to capture evidence" });
+    }
+  });
+
+  app.post('/api/admin/discovery/batch-evidence', isAdmin, async (req, res) => {
+    try {
+      const { siteIds } = z.object({
+        siteIds: z.array(z.number())
+      }).parse(req.body);
+
+      const { EvidenceStorage } = await import('./services/evidenceStorage.js');
+      const evidenceStorage = new EvidenceStorage();
+      
+      const results = await evidenceStorage.batchCaptureEvidence(siteIds);
+      
+      // Cleanup browser resources
+      await evidenceStorage.cleanup();
+      
+      res.json({ 
+        success: true, 
+        results,
+        count: results.length,
+        timestamp: new Date()
+      });
+    } catch (error) {
+      console.error("Error batch capturing evidence:", (error as Error).message);
+      res.status(500).json({ error: "Failed to batch capture evidence" });
+    }
+  });
+
+  app.get('/api/admin/discovery/:id/evidence', isAdmin, async (req, res) => {
+    try {
+      const { id } = z.object({ id: z.string().regex(/^\d+$/).transform(Number) }).parse(req.params);
+
+      const { EvidenceStorage } = await import('./services/evidenceStorage.js');
+      const evidenceStorage = new EvidenceStorage();
+      
+      const evidence = await evidenceStorage.getEvidence(id);
+      
+      if (!evidence) {
+        return res.status(404).json({ error: "Evidence not found" });
+      }
+      
+      res.json({ 
+        success: true, 
+        evidence,
+        timestamp: new Date()
+      });
+    } catch (error) {
+      console.error("Error retrieving evidence:", (error as Error).message);
+      res.status(500).json({ error: "Failed to retrieve evidence" });
     }
   });
 
@@ -1190,16 +1836,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   
-  // Setup Socket.IO for real-time agent monitoring
+  // WebSocket support for real-time features (agent monitoring removed)
   const io = new SocketIOServer(httpServer, {
     cors: {
       origin: process.env.NODE_ENV === "development" ? "http://localhost:5173" : false,
       methods: ["GET", "POST"]
     }
   });
-  
-  // Setup WebSocket events for agent orchestrator
-  setupWebSocketEvents(io);
   
   return httpServer;
 }

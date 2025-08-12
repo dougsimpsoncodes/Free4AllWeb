@@ -12,6 +12,7 @@ import {
   searchTerms,
   discoveredSites,
   dealPages,
+  deviceTokens,
   type User,
   type UpsertUser,
   type Team,
@@ -39,7 +40,7 @@ import {
   type DealPage,
   type InsertDealPage,
 } from "@shared/schema";
-import { db } from "./db";
+import { db } from "./supabaseDb";
 import { eq, and, desc, asc, gte, lte, count } from "drizzle-orm";
 
 export interface IStorage {
@@ -232,8 +233,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createPromotion(promotion: InsertPromotion): Promise<Promotion> {
-    const [newPromotion] = await db.insert(promotions).values(promotion).returning();
+    const cleaned = this.serializePromotionDates(promotion);
+    const [newPromotion] = await db.insert(promotions).values(cleaned).returning();
     return newPromotion;
+  }
+
+  private serializePromotionDates(p: InsertPromotion): InsertPromotion {
+    const out: any = { ...p };
+    if (out.validUntil instanceof Date) {
+      const y = out.validUntil.getUTCFullYear();
+      const m = String(out.validUntil.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(out.validUntil.getUTCDate()).padStart(2, "0");
+      out.validUntil = `${y}-${m}-${d}`;
+    }
+    if (typeof out.validUntil === "string") {
+      out.validUntil = out.validUntil.slice(0, 10);
+    }
+    if (out.approvedAt && !(out.approvedAt instanceof Date)) {
+      out.approvedAt = new Date(out.approvedAt as any);
+    }
+    return out;
   }
 
   async updatePromotion(id: number, promotion: Partial<InsertPromotion>): Promise<Promotion> {
@@ -723,6 +742,93 @@ export class DatabaseStorage implements IStorage {
       triggeredAt: dealData.triggeredAt || new Date(),
       expiresAt: dealData.expiresAt,
     });
+  }
+
+  // Device Token Management for Push Notifications
+  async saveDeviceToken(
+    userId: string, 
+    deviceToken: string, 
+    platform: 'ios' | 'android' | 'web',
+    deviceInfo?: { model?: string; osVersion?: string; appVersion?: string }
+  ): Promise<void> {
+    await db.insert(deviceTokens)
+      .values({ 
+        userId, 
+        deviceToken, 
+        platform,
+        deviceInfo,
+        isActive: true,
+        lastUsed: new Date(),
+        createdAt: new Date()
+      })
+      .onConflictDoUpdate({
+        target: deviceTokens.deviceToken,
+        set: { 
+          lastUsed: new Date(), 
+          isActive: true,
+          deviceInfo: deviceInfo || null
+        }
+      });
+  }
+
+  async getUserDeviceTokens(userId: string, platform?: 'ios' | 'android' | 'web'): Promise<string[]> {
+    const whereConditions = [
+      eq(deviceTokens.userId, userId),
+      eq(deviceTokens.isActive, true)
+    ];
+
+    if (platform) {
+      whereConditions.push(eq(deviceTokens.platform, platform));
+    }
+
+    const tokens = await db.select({ token: deviceTokens.deviceToken })
+      .from(deviceTokens)
+      .where(and(...whereConditions));
+    
+    return tokens.map(t => t.token);
+  }
+
+  async deactivateDeviceToken(deviceToken: string): Promise<void> {
+    await db.update(deviceTokens)
+      .set({ isActive: false })
+      .where(eq(deviceTokens.deviceToken, deviceToken));
+  }
+
+  async getUserNotificationPreferences(userId: string): Promise<{
+    pushNotifications: boolean;
+    email: boolean;
+    sms: boolean;
+    quietHours?: { enabled: boolean; start: string; end: string };
+  }> {
+    // For now, return default preferences
+    // This can be enhanced with a user preferences table
+    const hasDeviceTokens = await this.getUserDeviceTokens(userId, 'ios');
+    
+    return {
+      pushNotifications: hasDeviceTokens.length > 0,
+      email: true, // Always enabled as backup
+      sms: false, // Disabled since we're using APNs
+      quietHours: {
+        enabled: true,
+        start: "22:00",
+        end: "08:00"
+      }
+    };
+  }
+
+  async cleanupExpiredDeviceTokens(daysOld: number = 90): Promise<number> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+
+    const result = await db.delete(deviceTokens)
+      .where(
+        and(
+          eq(deviceTokens.isActive, false),
+          lt(deviceTokens.lastUsed, cutoffDate)
+        )
+      );
+
+    return result.rowCount || 0;
   }
 }
 
