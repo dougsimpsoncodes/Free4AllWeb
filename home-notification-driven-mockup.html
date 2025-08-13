@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎉 Your Deal is Ready! - Free4All</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        /* Navigation */
+        .navbar {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding: 0 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .nav-container {
+            max-width: 1280px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 64px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 20px;
+            color: #1f2937;
+        }
+        
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            font-size: 14px;
+        }
+        
+        .nav-links a {
+            color: #6b7280;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        /* Hero Section - Active Deal */
+        .hero {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 48px 24px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="2" fill="white" opacity="0.1"/></svg>') repeat;
+            animation: float 20s infinite linear;
+        }
+        
+        @keyframes float {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        
+        .hero-content {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .celebration {
+            font-size: 48px;
+            margin-bottom: 16px;
+            animation: bounce 2s infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+        
+        .trigger-text {
+            font-size: 18px;
+            margin-bottom: 8px;
+            opacity: 0.9;
+        }
+        
+        .deal-title {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .deal-subtitle {
+            font-size: 20px;
+            margin-bottom: 32px;
+            opacity: 0.95;
+        }
+        
+        .cta-group {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn-cta {
+            background: white;
+            color: #059669;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+            padding: 14px 30px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-secondary:hover {
+            background: white;
+            color: #059669;
+        }
+        
+        /* Value Props Section */
+        .value-section {
+            background: white;
+            padding: 64px 24px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .section-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        
+        .section-title {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: #1f2937;
+        }
+        
+        .section-subtitle {
+            font-size: 18px;
+            color: #6b7280;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 32px;
+            margin-bottom: 48px;
+        }
+        
+        .stat-card {
+            text-align: center;
+            padding: 24px;
+        }
+        
+        .stat-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .stat-number {
+            font-size: 32px;
+            font-weight: 700;
+            color: #059669;
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            font-size: 16px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        /* Deal Details */
+        .deal-details {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 48px;
+        }
+        
+        .details-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 32px;
+            align-items: start;
+        }
+        
+        .deal-info h3 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: #1f2937;
+        }
+        
+        .deal-steps {
+            list-style: none;
+        }
+        
+        .deal-steps li {
+            padding: 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+        }
+        
+        .step-number {
+            background: #10b981;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        
+        .promo-code {
+            background: #059669;
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .promo-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+        
+        .promo-value {
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+        }
+        
+        .copy-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        /* Community Section */
+        .community-section {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 64px 24px;
+            text-align: center;
+        }
+        
+        .community-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 24px;
+            margin-top: 32px;
+        }
+        
+        .community-stat {
+            padding: 20px;
+        }
+        
+        .community-number {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .community-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        /* Footer */
+        .footer {
+            background: #1f2937;
+            color: white;
+            padding: 32px 24px;
+            text-align: center;
+        }
+        
+        .footer-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        
+        .footer-links a {
+            color: #9ca3af;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        
+        .footer-links a:hover {
+            color: white;
+        }
+        
+        @media (max-width: 768px) {
+            .details-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .deal-title {
+                font-size: 24px;
+            }
+            
+            .celebration {
+                font-size: 36px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <span>🍔</span>
+                Free4All
+            </div>
+            <div class="nav-links">
+                <a href="/profile">My Teams</a>
+                <a href="/history">Deal History</a>
+                <a href="#settings">Settings</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section - Active Deal -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="celebration">🎉🏆🎉</div>
+            <div class="trigger-text">Dodgers beat the Giants 8-3!</div>
+            <h1 class="deal-title">FREE Big Mac Unlocked!</h1>
+            <p class="deal-subtitle">Your favorite team triggered your favorite deal</p>
+            
+            <div class="cta-group">
+                <a href="#deal-details" class="btn-cta">Claim Your Free Big Mac</a>
+                <a href="#locations" class="btn-secondary">Find Locations</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Value Props -->
+    <section class="value-section">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">You're Part of Something Big</h2>
+                <p class="section-subtitle">
+                    Smart fans like you have saved thousands through Free4All. Here's your impact:
+                </p>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">💰</div>
+                    <div class="stat-number">$127</div>
+                    <div class="stat-label">You've Saved</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">🍟</div>
+                    <div class="stat-number">23</div>
+                    <div class="stat-label">Free Meals Claimed</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">⚾</div>
+                    <div class="stat-number">18</div>
+                    <div class="stat-label">Winning Games</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">📱</div>
+                    <div class="stat-number">47</div>
+                    <div class="stat-label">Days Subscribed</div>
+                </div>
+            </div>
+
+            <!-- Deal Details -->
+            <div class="deal-details" id="deal-details">
+                <div class="details-grid">
+                    <div class="deal-info">
+                        <h3>How to Get Your FREE Big Mac</h3>
+                        <ol class="deal-steps">
+                            <li>
+                                <span class="step-number">1</span>
+                                Open the McDonald's app on your phone
+                            </li>
+                            <li>
+                                <span class="step-number">2</span>
+                                Go to "Deals" section and enter promo code
+                            </li>
+                            <li>
+                                <span class="step-number">3</span>
+                                Add Big Mac to cart (shows $0.00)
+                            </li>
+                            <li>
+                                <span class="step-number">4</span>
+                                Choose pickup/delivery and enjoy!
+                            </li>
+                        </ol>
+                        <p style="margin-top: 16px; color: #6b7280; font-size: 14px;">
+                            ⏰ Deal expires tonight at 11:59 PM • Valid at all participating locations
+                        </p>
+                    </div>
+                    
+                    <div class="promo-code">
+                        <div class="promo-label">Your Promo Code</div>
+                        <div class="promo-value" id="promoCode">DODGERS8</div>
+                        <button class="copy-btn" onclick="copyPromoCode()">📋 Copy Code</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Community Impact -->
+    <section class="community-section">
+        <div class="container">
+            <h2 class="section-title">Tonight's Community Wins</h2>
+            <p class="section-subtitle">
+                Free4All users are celebrating together across LA!
+            </p>
+            
+            <div class="community-stats">
+                <div class="community-stat">
+                    <div class="community-number">1,247</div>
+                    <div class="community-label">Fans Notified</div>
+                </div>
+                <div class="community-stat">
+                    <div class="community-number">$18,420</div>
+                    <div class="community-label">Total Savings</div>
+                </div>
+                <div class="community-stat">
+                    <div class="community-number">892</div>
+                    <div class="community-label">Deals Claimed</div>
+                </div>
+                <div class="community-stat">
+                    <div class="community-number">4.9★</div>
+                    <div class="community-label">Satisfaction</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-links">
+                <a href="/privacy">Privacy Policy</a>
+                <a href="/terms">Terms of Service</a>
+                <a href="/support">Support</a>
+                <a href="/about">About Free4All</a>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">
+                © 2024 Free4All. Making sports victories even sweeter. 🏆
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        function copyPromoCode() {
+            const code = document.getElementById('promoCode').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Copied!';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            });
+        }
+
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

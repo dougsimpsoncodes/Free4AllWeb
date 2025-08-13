@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free4AllWeb Admin - Actual Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 32px 16px;
+        }
+        
+        .header {
+            margin-bottom: 24px;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            color: #6b7280;
+        }
+        
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: none;
+            font-size: 14px;
+        }
+        
+        .btn-outline {
+            background: white;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+        
+        .btn-outline:hover {
+            background: #f9fafb;
+            border-color: #3b82f6;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+            font-size: 16px;
+            padding: 12px 24px;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .instruction-card {
+            background: #dbeafe;
+            border: 1px solid #93c5fd;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 24px 0;
+        }
+        
+        .instruction-card h3 {
+            font-weight: 500;
+            color: #1e40af;
+            margin-bottom: 8px;
+        }
+        
+        .instruction-card ol {
+            list-style: none;
+            color: #1e40af;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .empty-state {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 48px 20px;
+            text-align: center;
+            margin: 24px 0;
+        }
+        
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            color: #9ca3af;
+        }
+        
+        .empty-title {
+            font-size: 18px;
+            font-weight: 500;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
+        
+        .empty-text {
+            color: #6b7280;
+        }
+        
+        .deal-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: box-shadow 0.2s;
+        }
+        
+        .deal-card:hover {
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .deal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+        }
+        
+        .deal-content {
+            flex: 1;
+        }
+        
+        .deal-title {
+            font-weight: 500;
+            color: #111827;
+            margin-bottom: 4px;
+            font-size: 15px;
+        }
+        
+        .deal-text {
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+        
+        .deal-meta {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .badge-confidence {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        .badge-restaurant {
+            background: white;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+        
+        .deal-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #374151;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .btn-small:hover {
+            background: #f9fafb;
+        }
+        
+        .btn-small.danger {
+            color: #dc2626;
+        }
+        
+        /* Manual Deal Form */
+        .form-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .form-header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .form-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #111827;
+        }
+        
+        .form-content {
+            padding: 20px;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .form-group.full {
+            grid-column: span 2;
+        }
+        
+        .label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+        
+        .input, .select, .textarea {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+        
+        .input:focus, .select:focus, .textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        
+        .trigger-condition {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 12px;
+            padding: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            margin-top: 8px;
+        }
+        
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-group.full {
+                grid-column: span 1;
+            }
+            
+            .deal-header {
+                flex-direction: column;
+            }
+            
+            .deal-actions {
+                flex-direction: row;
+            }
+            
+            .trigger-condition {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header Section (SimpleDealReview component) -->
+        <div class="header">
+            <div class="header-actions">
+                <div>
+                    <h1>Deal Management</h1>
+                    <p>23 discovered deal sources available</p>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-outline">
+                        🔍 Find More Sources
+                    </button>
+                    <button class="btn btn-primary">
+                        ➕ Add Verified Deal
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions Card -->
+        <div class="instruction-card">
+            <h3>How it works:</h3>
+            <ol>
+                <li>1. Click links below to verify deals are real</li>
+                <li>2. Copy the URL of any verified deal</li>
+                <li>3. Click "Add Verified Deal" to create a structured deal entry</li>
+                <li>4. Fill out the trigger conditions for automated validation</li>
+            </ol>
+        </div>
+
+        <!-- Discovered Deals List -->
+        <div class="deal-card">
+            <div class="deal-header">
+                <div class="deal-content">
+                    <h4 class="deal-title">Free Big Mac when Dodgers score 5+ runs</h4>
+                    <p class="deal-text">Get a FREE Big Mac when the Dodgers score 5 or more runs at home games! Valid until 11:59 PM on game day. Use promo code DODGERS5 at participating locations...</p>
+                    <div class="deal-meta">
+                        <span class="badge badge-confidence">96% confidence</span>
+                        <span class="badge badge-restaurant">🍔 McDonald's</span>
+                    </div>
+                </div>
+                <div class="deal-actions">
+                    <button class="btn-small">🔗 Check Deal</button>
+                    <button class="btn-small">Copy URL</button>
+                    <button class="btn-small danger">✕ Hide</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="deal-card">
+            <div class="deal-header">
+                <div class="deal-content">
+                    <h4 class="deal-title">50% off Orange Chicken on Dodgers wins</h4>
+                    <p class="deal-text">Panda Express celebrating Dodgers wins with 50% off Orange Chicken! Valid the day after any Dodgers victory. Show this post or use code WIN50...</p>
+                    <div class="deal-meta">
+                        <span class="badge badge-confidence">92% confidence</span>
+                        <span class="badge badge-restaurant">🥡 Panda Express</span>
+                    </div>
+                </div>
+                <div class="deal-actions">
+                    <button class="btn-small">🔗 Check Deal</button>
+                    <button class="btn-small">Copy URL</button>
+                    <button class="btn-small danger">✕ Hide</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="deal-card">
+            <div class="deal-header">
+                <div class="deal-content">
+                    <h4 class="deal-title">Free Jumbo Jack with 3+ home runs</h4>
+                    <p class="deal-text">HOME RUN SPECIAL! When @Dodgers hit 3+ home runs in a game, get a FREE Jumbo Jack the next day! Valid 24 hours after game end. #DodgerDeal</p>
+                    <div class="deal-meta">
+                        <span class="badge badge-confidence">89% confidence</span>
+                        <span class="badge badge-restaurant">🍔 Jack in the Box</span>
+                    </div>
+                </div>
+                <div class="deal-actions">
+                    <button class="btn-small">🔗 Check Deal</button>
+                    <button class="btn-small">Copy URL</button>
+                    <button class="btn-small danger">✕ Hide</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manual Deal Entry Form (shown when "Add Verified Deal" is clicked) -->
+        <div class="form-card" style="display: none;">
+            <div class="form-header">
+                <h2 class="form-title">Deal Information</h2>
+            </div>
+            <div class="form-content">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="label">Restaurant *</label>
+                        <select class="select">
+                            <option>Select restaurant</option>
+                            <option>McDonald's</option>
+                            <option>Panda Express</option>
+                            <option>Jack in the Box</option>
+                            <option>ampm</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="label">Team</label>
+                        <input type="text" class="input" value="Los Angeles Dodgers">
+                    </div>
+                </div>
+
+                <div class="form-group full">
+                    <label class="label">What's Free/Discounted? *</label>
+                    <input type="text" class="input" placeholder="e.g. Free Big Mac, 50% off pizza, Free coffee">
+                </div>
+
+                <div class="form-group full">
+                    <label class="label">When does this trigger? *</label>
+                    <div class="trigger-condition">
+                        <select class="select">
+                            <option>Runs Scored</option>
+                            <option>Win/Loss</option>
+                            <option>Strikeouts</option>
+                            <option>Home Runs</option>
+                        </select>
+                        <select class="select">
+                            <option>≥ (or more)</option>
+                            <option>= (exactly)</option>
+                            <option>＞ (more than)</option>
+                        </select>
+                        <input type="number" class="input" placeholder="Value" min="0">
+                        <select class="select">
+                            <option>Home Games</option>
+                            <option>Away Games</option>
+                            <option>Any Game</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="label">Promo Code (if required)</label>
+                        <input type="text" class="input" placeholder="e.g. DODGERS">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">Valid Until</label>
+                        <input type="date" class="input">
+                    </div>
+                </div>
+
+                <div class="form-group full">
+                    <label class="label">Source URL *</label>
+                    <input type="text" class="input" placeholder="Paste the URL where you found this deal">
+                    <p class="help-text">Original source of the deal information</p>
+                </div>
+
+                <div class="form-group full">
+                    <label class="label">Redemption Instructions *</label>
+                    <textarea class="textarea" placeholder="e.g. 'Use the McDonald's app and enter code in Deals section' or 'Show ticket at counter'"></textarea>
+                    <p class="help-text">How customers can redeem this deal (app, in-store, etc.)</p>
+                </div>
+
+                <div class="form-group full">
+                    <label class="label">Deal Image URL (optional)</label>
+                    <input type="text" class="input" placeholder="https://example.com/deal-image.jpg">
+                    <p class="help-text">Paste a URL to an image for this deal</p>
+                </div>
+
+                <div class="button-group" style="margin-top: 24px;">
+                    <button class="btn btn-primary">✓ Save Deal</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

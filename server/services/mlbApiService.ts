@@ -144,19 +144,34 @@ export class MLBApiService {
   }
 
   /**
-   * Get live game data with detailed stats
+   * Get game data with detailed stats (uses boxscore for completed games)
    */
-  async getLiveGameData(gamePk: number): Promise<MLBLiveGameData | null> {
+  async getLiveGameData(gamePk: number): Promise<any | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/game/${gamePk}/feed/live`);
+      // Try boxscore endpoint first (works for completed games)
+      const boxscoreResponse = await fetch(`${this.baseUrl}/game/${gamePk}/boxscore`);
       
-      if (!response.ok) {
-        throw new Error(`MLB API error: ${response.status}`);
+      if (boxscoreResponse.ok) {
+        const boxscoreData = await boxscoreResponse.json();
+        
+        // Convert boxscore format to match expected liveData format
+        return {
+          liveData: {
+            boxscore: boxscoreData
+          }
+        };
       }
 
-      return await response.json();
+      // Fallback to live feed for active games
+      const liveResponse = await fetch(`${this.baseUrl}/game/${gamePk}/feed/live`);
+      
+      if (liveResponse.ok) {
+        return await liveResponse.json();
+      }
+
+      throw new Error(`Both boxscore and live feed failed for game ${gamePk}`);
     } catch (error) {
-      console.error(`Error fetching live game data for ${gamePk}:`, error);
+      console.error(`Error fetching game data for ${gamePk}:`, error);
       return null;
     }
   }

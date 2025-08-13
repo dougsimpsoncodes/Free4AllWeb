@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { gameSchedulingService } from "../services/gameSchedulingService";
 import { emailService } from "../services/emailService";
 import { storage } from "../storage";
-import { isAdmin } from "../googleAuth";
+import { isAdmin } from "../clerkAuth";
 
 export function registerGameSchedulingRoutes(app: Express) {
   // Test pre-game alert

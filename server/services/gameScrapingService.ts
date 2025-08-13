@@ -64,10 +64,9 @@ class GameScrapingService {
           // Save game to database
           const savedGame = await storage.createGame(internalGame);
           
-          // Check for promotion triggers (simplified for testing)
-          const promotions = await storage.getPromotionsByTeam(team.id);
-          const triggeredCount = this.simulatePromotionTriggers(internalGame, promotions);
-          result.dealsTriggered += triggeredCount;
+          // Promotion triggers handled by game processor - not simulated
+          // Real promotion triggers are processed by the game processor service
+          result.dealsTriggered += 0; // Actual count tracked by promotionService
 
         } catch (gameError) {
           result.errors.push(`Game processing error: ${(gameError as Error).message}`);
@@ -230,30 +229,8 @@ class GameScrapingService {
     }, {} as any);
   }
 
-  private simulatePromotionTriggers(game: any, promotions: any[]): number {
-    let triggeredCount = 0;
-    
-    for (const promotion of promotions) {
-      const condition = promotion.triggerCondition.toLowerCase();
-      
-      // Simulate win conditions
-      if ((condition.includes('win_home') && game.isHome && game.teamScore > game.opponentScore) ||
-          (condition.includes('win_any') && game.teamScore > game.opponentScore)) {
-        triggeredCount++;
-        continue;
-      }
-      
-      // Simulate score conditions
-      if (condition.includes('runs_scored:') || condition.includes('points_scored:')) {
-        const threshold = parseInt(condition.split(':')[1]);
-        if (game.teamScore >= threshold) {
-          triggeredCount++;
-        }
-      }
-    }
-    
-    return triggeredCount;
-  }
+  // simulatePromotionTriggers removed - was fake simulation
+  // Real promotion triggers are handled by promotionService and gameProcessor
 
   private generateRecommendations(results: ScrapingResult[]): string[] {
     const recommendations = [];

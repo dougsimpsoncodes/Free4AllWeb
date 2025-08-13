@@ -290,13 +290,33 @@ export class SocialMediaDiscoveryEngine {
         let sourceId = await this.getOrCreateSource(result.source);
         let termId = await this.getOrCreateSearchTerm(`${restaurant} dodgers social discovery`);
 
+        // Check if this is a multi-team post and extract only Dodgers deals
+        let title = result.title;
+        let content = result.content;
+        
+        if (title.includes("MLB Free Food Deals") || content.includes("r/Dodgers")) {
+          // Extract only Dodgers section from multi-team posts
+          const dodgersMatch = content.match(/r\/Dodgers.*?(?=\n\nr\/|\n\nDaily|$)/si);
+          if (dodgersMatch) {
+            content = dodgersMatch[0].trim();
+            title = `${title} - Dodgers Only`;
+          }
+        }
+        
+        // Check if URL already exists before saving
+        const existing = await storage.getDiscoveredSitesByUrl(result.url);
+        if (existing && existing.length > 0) {
+          console.log(`⏭️ Skipping duplicate URL: ${result.url}`);
+          continue;
+        }
+        
         // Save discovered site
         await storage.createDiscoveredSite({
           url: result.url,
           sourceId: sourceId,
           searchTermId: termId,
-          title: result.title,
-          content: result.content,
+          title: title,
+          content: content,
           confidence: result.confidence.toString(),
           restaurantDetected: restaurant,
           teamDetected: 'Los Angeles Dodgers'

@@ -1,0 +1,27 @@
+{
+  "dealDetails": {
+    "title": "Free Orange Chicken When Dodgers Win",
+    "description": "Get free Orange Chicken at Panda Express when the Los Angeles Dodgers win their game",
+    "restaurant": "Panda Express",
+    "team": "Los Angeles Dodgers",
+    "triggerType": "team_win",
+    "triggerCondition": "Dodgers win any game",
+    "triggerConditions": [
+      {
+        "field": "result",
+        "operator": "equals",
+        "value": "win"
+      }
+    ],
+    "triggerLogic": "AND",
+    "offerValue": "Free",
+    "promoCode": null,
+    "instructions": "Show this notification to cashier when Dodgers win",
+    "expirationHours": 24,
+    "locations": ["all"],
+    "perUserLimit": 1,
+    "totalLimit": null,
+    "perDayLimit": 1
+  },
+  "sourceUrl": "https://reddit.com/r/dodgers/panda_express_deal"
+}

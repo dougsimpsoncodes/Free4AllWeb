@@ -1,5 +1,15 @@
 {
   "mcpServers": {
+    "free4all": {
+      "command": "node",
+      "args": [
+        "/Users/dougsimpson/Projects/Free4AllWeb/mcp-server/dist/free4all-mcp.js"
+      ],
+      "env": {
+        "SUPABASE_URL": "https://laeyzrbtsbeylrjcttto.supabase.co",
+        "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhZXl6cmJ0c2JleWxyamN0dHRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ3NzA0MzUsImV4cCI6MjA3MDM0NjQzNX0.TwwhZFw-oZuP7ue_ly-AGc9yQwajxU9K_HAWRWs3Fbs"
+      }
+    },
     "filesystem": {
       "command": "npx",
       "args": [

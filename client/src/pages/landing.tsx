@@ -3,18 +3,26 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Utensils, Bell, Trophy, CheckCircle, Star, Shield, Zap } from "lucide-react";
-import { Link } from "wouter";
+import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton, useUser } from "@clerk/clerk-react";
 import AdminToggle from "@/components/AdminToggle";
 
 export default function Landing() {
+  const { user, isLoaded } = useUser();
+  
   // Set document title
   useEffect(() => {
     document.title = "Free4All - Get Food Deals When Your Team Wins";
   }, []);
 
-  const handleSignup = () => {
-    window.location.href = "/signup";
-  };
+  // Don't render auth buttons until Clerk is fully loaded
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
 
   return (
     <div className="min-h-screen bg-white">
@@ -28,11 +36,18 @@ export default function Landing() {
               <Utensils className="text-white h-8 w-8" />
               <span className="text-2xl font-bold text-white">Free4All</span>
             </div>
-            <Link href="/signup">
-              <Button variant="secondary" size="sm">
-                Sign Up
-              </Button>
-            </Link>
+            <SignedOut>
+              {!user && (
+                <SignInButton mode="modal">
+                  <Button variant="secondary" size="sm">
+                    Sign In
+                  </Button>
+                </SignInButton>
+              )}
+            </SignedOut>
+            <SignedIn>
+              <UserButton />
+            </SignedIn>
           </div>
         </div>
       </nav>
@@ -52,16 +67,32 @@ export default function Landing() {
               Never miss another victory meal!
             </p>
             <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
-              <Button 
-                onClick={handleSignup}
-                size="lg" 
-                className="bg-white text-blue-600 hover:bg-gray-100 px-12 py-6 text-xl font-bold rounded-full shadow-xl"
-              >
-                Get Started Free
-              </Button>
-              <p className="text-white/80 text-sm">
-                No credit card required
-              </p>
+              <SignedOut>
+                {!user && (
+                  <>
+                    <SignUpButton mode="modal">
+                      <Button 
+                        size="lg" 
+                        className="bg-white text-blue-600 hover:bg-gray-100 px-12 py-6 text-xl font-bold rounded-full shadow-xl"
+                      >
+                        Get Started Free
+                      </Button>
+                    </SignUpButton>
+                    <p className="text-white/80 text-sm">
+                      No credit card required
+                    </p>
+                  </>
+                )}
+              </SignedOut>
+              <SignedIn>
+                <Button 
+                  size="lg" 
+                  className="bg-white text-blue-600 hover:bg-gray-100 px-12 py-6 text-xl font-bold rounded-full shadow-xl"
+                  onClick={() => window.location.href = '/dashboard'}
+                >
+                  Go to Dashboard
+                </Button>
+              </SignedIn>
             </div>
           </div>
         </div>
@@ -279,16 +310,35 @@ export default function Landing() {
           <p className="text-xl text-blue-100 mb-8">
             Join thousands of fans who never miss a victory meal
           </p>
-          <Button 
-            onClick={handleSignup}
-            size="lg"
-            className="bg-white text-green-600 hover:bg-gray-100 px-12 py-6 text-2xl font-bold rounded-full shadow-xl"
-          >
-            Start Free Today
-          </Button>
-          <p className="text-blue-100 mt-6 text-sm">
-            ✓ Instant setup &nbsp;&nbsp; ✓ No credit card &nbsp;&nbsp; ✓ Cancel anytime
-          </p>
+          <SignedOut>
+            {!user && (
+              <>
+                <SignUpButton mode="modal">
+                  <Button 
+                    size="lg"
+                    className="bg-white text-green-600 hover:bg-gray-100 px-12 py-6 text-2xl font-bold rounded-full shadow-xl"
+                  >
+                    Start Free Today
+                  </Button>
+                </SignUpButton>
+                <p className="text-blue-100 mt-6 text-sm">
+                  ✓ Instant setup &nbsp;&nbsp; ✓ No credit card &nbsp;&nbsp; ✓ Cancel anytime
+                </p>
+              </>
+            )}
+          </SignedOut>
+          <SignedIn>
+            <Button 
+              size="lg"
+              className="bg-white text-green-600 hover:bg-gray-100 px-12 py-6 text-2xl font-bold rounded-full shadow-xl"
+              onClick={() => window.location.href = '/dashboard'}
+            >
+              View Your Deals
+            </Button>
+            <p className="text-blue-100 mt-6 text-sm">
+              ✓ Personalized alerts &nbsp;&nbsp; ✓ Team preferences &nbsp;&nbsp; ✓ Deal history
+            </p>
+          </SignedIn>
         </div>
       </div>
     </div>

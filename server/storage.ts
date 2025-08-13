@@ -13,6 +13,7 @@ import {
   discoveredSites,
   dealPages,
   deviceTokens,
+  promotionTriggerEvents,
   type User,
   type UpsertUser,
   type Team,
@@ -39,9 +40,12 @@ import {
   type InsertDiscoveredSite,
   type DealPage,
   type InsertDealPage,
+  type PromotionTriggerEvent,
+  type InsertPromotionTriggerEvent,
 } from "@shared/schema";
 import { db } from "./supabaseDb";
 import { eq, and, desc, asc, gte, lte, count } from "drizzle-orm";
+import crypto from "crypto";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -72,6 +76,9 @@ export interface IStorage {
   getPromotion(id: number): Promise<Promotion | undefined>;
   createPromotion(promotion: InsertPromotion): Promise<Promotion>;
   updatePromotion(id: number, promotion: Partial<InsertPromotion>): Promise<Promotion>;
+  
+  // Enhanced promotion creation from discovered sites (idempotent with state management)
+  createPromotionFromDiscoveredSite(discoveredSiteId: number, dealDetails: any, createdBy: string): Promise<Promotion>;
 
   // Game operations
   getGames(): Promise<Game[]>;
@@ -236,6 +243,143 @@ export class DatabaseStorage implements IStorage {
     const cleaned = this.serializePromotionDates(promotion);
     const [newPromotion] = await db.insert(promotions).values(cleaned).returning();
     return newPromotion;
+  }
+
+  async createPromotionFromDiscoveredSite(discoveredSiteId: number, dealDetails: any, createdBy: string): Promise<Promotion> {
+    // Get the discovered site data
+    const discoveredSite = await this.getDiscoveredSiteById(discoveredSiteId);
+    if (!discoveredSite) {
+      throw new Error(`Discovered site ${discoveredSiteId} not found`);
+    }
+
+    // Generate idempotency fingerprint
+    const sourceFingerprint = this.generateSourceFingerprint(
+      discoveredSite.url || "",
+      dealDetails.title || discoveredSite.title || "",
+      dealDetails.restaurant || ""
+    );
+
+    // Check for existing promotion with same fingerprint (idempotency)
+    const [existingPromotion] = await db
+      .select()
+      .from(promotions)
+      .where(eq(promotions.sourceFingerprint, sourceFingerprint));
+
+    if (existingPromotion) {
+      console.log(`Promotion already exists with fingerprint ${sourceFingerprint}, returning existing`);
+      return existingPromotion;
+    }
+
+    // Find restaurant and team IDs
+    const restaurant = await this.findRestaurantByName(dealDetails.restaurant);
+    const team = await this.findTeamByName(dealDetails.team);
+
+    if (!restaurant || !team) {
+      throw new Error(`Restaurant "${dealDetails.restaurant}" or team "${dealDetails.team}" not found`);
+    }
+
+    // Structure the trigger conditions
+    const triggerConditions = {
+      type: dealDetails.triggerType as "team_win" | "team_score" | "team_home_win",
+      conditions: dealDetails.triggerConditions || [
+        {
+          field: "result",
+          operator: "equals" as const,
+          value: "win"
+        }
+      ],
+      logic: dealDetails.triggerLogic || "AND" as "AND" | "OR"
+    };
+
+    // Structure redemption details with timezone and expiration
+    const redemptionDetails = {
+      promoCode: dealDetails.promoCode || null,
+      instructions: dealDetails.instructions || "Show this notification at checkout",
+      expirationHours: dealDetails.expirationHours || 24,
+      locations: dealDetails.locations || ["all"],
+      timezone: "America/Los_Angeles",
+      limits: {
+        perUser: dealDetails.perUserLimit || 1,
+        total: dealDetails.totalLimit || null,
+        perDay: dealDetails.perDayLimit || null
+      }
+    };
+
+    // Create the promotion with production-grade data structure
+    const promotionData: InsertPromotion = {
+      title: dealDetails.title,
+      description: dealDetails.description,
+      teamId: team.id,
+      restaurantId: restaurant.id,
+      offerValue: dealDetails.offerValue,
+      triggerCondition: dealDetails.triggerCondition || "Team wins",
+      redemptionInstructions: dealDetails.instructions,
+      promoCode: dealDetails.promoCode,
+      validUntil: dealDetails.validUntil,
+      isActive: true,
+      source: "discovered",
+      discoveryData: discoveredSite.dealExtracted ? JSON.parse(discoveredSite.dealExtracted) : null,
+      approvalStatus: "approved",
+      approvedBy: createdBy,
+      approvedAt: new Date(),
+      
+      // Production enhancements
+      state: "approved",
+      sourceFingerprint,
+      sourceUrl: discoveredSite.url,
+      discoveredSiteId,
+      triggerConditions,
+      redemptionDetails,
+      validationStatus: "pending",
+      validationData: {},
+      notificationData: {
+        sentCount: 0,
+        platforms: ["apns", "email"],
+        targetUsers: []
+      }
+    };
+
+    console.log("Creating promotion with structured data:", {
+      title: promotionData.title,
+      fingerprint: sourceFingerprint,
+      triggerConditions,
+      redemptionDetails,
+      state: promotionData.state,
+      validationStatus: promotionData.validationStatus
+    });
+
+    const cleaned = this.serializePromotionDates(promotionData);
+    const [newPromotion] = await db.insert(promotions).values(cleaned).returning();
+    return newPromotion;
+  }
+
+  private generateSourceFingerprint(url: string, title: string, restaurant: string): string {
+    const normalizedData = `${url.trim().toLowerCase()}|${title.trim().toLowerCase()}|${restaurant.trim().toLowerCase()}`;
+    return crypto.createHash("sha256").update(normalizedData).digest("hex");
+  }
+
+  private async findRestaurantByName(name: string): Promise<Restaurant | null> {
+    const [restaurant] = await db
+      .select()
+      .from(restaurants)
+      .where(eq(restaurants.name, name));
+    return restaurant || null;
+  }
+
+  private async findTeamByName(name: string): Promise<Team | null> {
+    const [team] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.name, name));
+    return team || null;
+  }
+
+  private async getDiscoveredSiteById(id: number): Promise<DiscoveredSite | null> {
+    const [site] = await db
+      .select()
+      .from(discoveredSites)
+      .where(eq(discoveredSites.id, id));
+    return site || null;
   }
 
   private serializePromotionDates(p: InsertPromotion): InsertPromotion {

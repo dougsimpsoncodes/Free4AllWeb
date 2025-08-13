@@ -876,19 +876,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         reviewedBy: req.user?.id || 'admin'
       });
       
-      // Store structured deal data (for future automated validation)
+      // Store structured deal data with idempotent creation
       if (dealDetails) {
         console.log("Structured Trigger Conditions:");
         console.log("- Type:", dealDetails.triggerType);
         console.log("- Conditions:", dealDetails.triggerConditions);
         console.log("- Logic:", dealDetails.triggerLogic);
         
-        // TODO: Save structured deal to deals table
-        // await storage.createDeal({
-        //   ...dealDetails,
-        //   discoveredSiteId: id,
-        //   createdBy: req.user?.id
-        // });
+        try {
+          const promotion = await storage.createPromotionFromDiscoveredSite(
+            id,
+            dealDetails,
+            req.user?.id || 'admin'
+          );
+          
+          console.log(`Created promotion ${promotion.id} with state: ${promotion.state}`);
+          console.log(`Validation status: ${promotion.validationStatus}`);
+          console.log(`Source fingerprint: ${promotion.sourceFingerprint}`);
+          
+        } catch (error) {
+          console.error("Error creating promotion:", (error as Error).message);
+          // Don't fail the approval if promotion creation fails - log and continue
+        }
       }
       
       console.log("=== APPROVAL COMPLETE ===");

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { emailService } from "../services/emailService";
-import { isAuthenticated } from "../googleAuth";
+import { isAuthenticated } from "../clerkAuth";
 
 export function registerNotificationRoutes(app: Express) {
   // Use standard authentication middleware

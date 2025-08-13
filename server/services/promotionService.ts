@@ -205,6 +205,7 @@ class PromotionService {
   }
 
   async syncRecentGames(teamId: number): Promise<void> {
+    console.error(`DEBUG: syncRecentGames called for team ${teamId}`);
     try {
       // Get team details to find external ID
       const team = await storage.getTeam(teamId);
@@ -212,9 +213,11 @@ class PromotionService {
         console.log(`Team ${teamId} not found or no external ID`);
         return;
       }
+      console.log(`Team found: ${team.name} (ID: ${team.id}, External ID: ${team.externalId})`);
 
       // Fetch recent games from MLB API
-      const recentGames = await sportsApiService.getRecentGames(parseInt(team.externalId));
+      console.log(`Syncing games for team ${teamId} (${team.name}) with external ID ${team.externalId}`);
+      const recentGames = await sportsApiService.getRecentGames(teamId);
 
       for (const gameData of recentGames) {
         // Check if game is already in our database

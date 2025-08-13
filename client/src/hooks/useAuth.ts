@@ -1,14 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useClerkAuth } from "@/contexts/ClerkAuthContext";
 
+// Compatibility wrapper for existing useAuth usage
 export function useAuth() {
-  const { data: user, isLoading } = useQuery({
-    queryKey: ["/api/auth/user"],
-    retry: false,
-  });
-
-  return {
-    user,
-    isLoading,
-    isAuthenticated: !!user,
-  };
+  return useClerkAuth();
 }

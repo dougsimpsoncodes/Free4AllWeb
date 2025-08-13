@@ -3,19 +3,18 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useAuth } from "@/hooks/useAuth";
+import { ClerkAuthProvider, useClerkAuth } from "@/contexts/ClerkAuthContext";
 import Landing from "@/pages/landing";
 import Home from "@/pages/home";
 import Admin from "@/pages/admin";
 import AdminDashboard from "@/pages/AdminDashboard";
 import UserAnalytics from "@/pages/UserAnalytics";
-import AgentDashboard from "@/pages/AgentDashboard";
+// AgentDashboard removed - fake agent system eliminated
 import DealMigration from "@/pages/DealMigration";
 import DealDiscovery from "@/pages/DealDiscovery";
 import GameAnalytics from "@/pages/GameAnalytics";
 import DealTemplate from "@/pages/deal-template";
 import DealPage from "@/pages/deal-page";
-import Signup from "@/pages/signup";
 import NotificationsPage from "@/pages/notifications";
 import GameSchedulingTest from "@/pages/GameSchedulingTest";
 import DealVerificationTestPage from "@/pages/deal-verification-test";
@@ -24,7 +23,7 @@ import Test from "@/pages/test";
 
 function Router() {
   try {
-    const { isAuthenticated, isLoading } = useAuth();
+    const { isAuthenticated, isLoading } = useClerkAuth();
 
     // Development mode - full access without authentication
     const isDevelopment = import.meta.env.DEV || window.location.hostname.includes('replit');
@@ -38,7 +37,7 @@ function Router() {
           <Route path="/admin" component={Admin} />
           <Route path="/admin/analytics" component={UserAnalytics} />
           <Route path="/admin/migration" component={DealMigration} />
-          <Route path="/admin/agents" component={AgentDashboard} />
+          {/* Agent dashboard removed - fake system eliminated */}
           <Route path="/deal-discovery" component={DealDiscovery} />
           <Route path="/analytics" component={GameAnalytics} />
           <Route path="/admin/deal-template" component={() => <DealTemplate />} />
@@ -46,7 +45,6 @@ function Router() {
           <Route path="/notifications" component={NotificationsPage} />
           <Route path="/game-scheduling-test" component={GameSchedulingTest} />
           <Route path="/deal-verification-test" component={DealVerificationTestPage} />
-          <Route path="/signup" component={Signup} />
           <Route component={NotFound} />
         </Switch>
       );
@@ -59,7 +57,6 @@ function Router() {
         {isLoading || !isAuthenticated ? (
           <>
             <Route path="/" component={Landing} />
-            <Route path="/signup" component={Signup} />
           </>
         ) : (
           <>
@@ -67,13 +64,12 @@ function Router() {
             <Route path="/admin" component={Admin} />
             <Route path="/admin/analytics" component={UserAnalytics} />
             <Route path="/admin/migration" component={DealMigration} />
-            <Route path="/admin/agents" component={AgentDashboard} />
+            {/* Agent dashboard removed - fake system eliminated */}
             <Route path="/deal-discovery" component={DealDiscovery} />
             <Route path="/analytics" component={GameAnalytics} />
             <Route path="/notifications" component={NotificationsPage} />
             <Route path="/game-scheduling-test" component={GameSchedulingTest} />
             <Route path="/deal-verification-test" component={DealVerificationTestPage} />
-            <Route path="/signup" component={Signup} />
           </>
         )}
         <Route component={NotFound} />
@@ -89,10 +85,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Router />
-        <Toaster />
-      </TooltipProvider>
+      <ClerkAuthProvider>
+        <TooltipProvider>
+          <Router />
+          <Toaster />
+        </TooltipProvider>
+      </ClerkAuthProvider>
     </QueryClientProvider>
   );
 }

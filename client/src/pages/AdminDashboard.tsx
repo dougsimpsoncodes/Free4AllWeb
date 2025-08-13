@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Play, Database, Zap, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { Play, Database, Zap, CheckCircle, Clock, AlertCircle, Search, Eye, Layers } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
 interface GameProcessorStatus {
@@ -39,6 +39,18 @@ export default function AdminDashboard() {
   const { data: promotions, isLoading: promotionsLoading } = useQuery<PromotionData[]>({
     queryKey: ['/api/admin/promotions'],
     // This would be a custom endpoint to fetch promotion data
+  });
+
+  // Fetch discovery status
+  const { data: discoveryStats, isLoading: discoveryLoading } = useQuery({
+    queryKey: ['/api/admin/discovery/sites'],
+    select: (data: any[]) => {
+      if (!data) return null;
+      const pending = data.filter(site => site.status === 'pending').length;
+      const approved = data.filter(site => site.status === 'approved').length;
+      const highConfidence = data.filter(site => site.confidenceScore && site.confidenceScore >= 0.7).length;
+      return { pending, approved, highConfidence, total: data.length };
+    }
   });
 
   // Manual game processing
@@ -77,7 +89,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Status Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {/* Game Processor Status */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -126,6 +138,34 @@ export default function AdminDashboard() {
               <p className="text-xs text-muted-foreground">
                 Ready for Dodgers games
               </p>
+            </CardContent>
+          </Card>
+
+          {/* Deal Discovery Status */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Deal Discovery</CardTitle>
+              <Search className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">
+                {discoveryLoading ? "..." : discoveryStats?.pending || 0}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Pending review
+              </p>
+              {discoveryStats && (
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge variant="outline" className="text-xs">
+                    <Layers className="h-3 w-3 mr-1" />
+                    {discoveryStats.highConfidence} high confidence
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    <Eye className="h-3 w-3 mr-1" />
+                    {discoveryStats.approved} approved
+                  </Badge>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

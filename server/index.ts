@@ -3,6 +3,40 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+
+// SECURITY: CORS Configuration
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    'http://localhost:5001',
+    'http://localhost:3000', 
+    'https://localhost:5001',
+    'https://localhost:3000'
+  ];
+  
+  // In production, only allow specific domains
+  if (process.env.NODE_ENV === 'production') {
+    // Add your production domains here
+    // allowedOrigins.push('https://yourdomain.com');
+  }
+  
+  const origin = req.headers.origin;
+  if (!origin || allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+    return;
+  }
+  
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

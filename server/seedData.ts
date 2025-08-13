@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db } from "./supabaseDb";
 import { teams, restaurants, promotions, leagues } from "@shared/schema";
 import { eq } from "drizzle-orm";
 

@@ -132,7 +132,60 @@ export const promotions = pgTable("promotions", {
   approvedAt: timestamp("approved_at", { mode: "date" }),
   // Force Date-mode for TIMESTAMP defaults too
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
-});
+  
+  // Production-grade enhancements
+  state: varchar("state", { length: 20 }).default("approved"), // draft, approved, validating, validated, triggered, expired, archived
+  sourceFingerprint: varchar("source_fingerprint", { length: 64 }).unique(), // sha256 hash for deduplication
+  sourceUrl: text("source_url"),
+  discoveredSiteId: integer("discovered_site_id").references(() => discoveredSites.id),
+  
+  // Structured trigger conditions (JSONB)
+  triggerConditions: jsonb("trigger_conditions").$type<{
+    type: "team_win" | "team_score" | "team_home_win";
+    conditions: Array<{
+      field: string;
+      operator: "equals" | "gte" | "lte" | "in";
+      value: string | number | string[];
+    }>;
+    logic: "AND" | "OR";
+  }>(),
+  
+  // Structured redemption details (JSONB)
+  redemptionDetails: jsonb("redemption_details").$type<{
+    promoCode?: string;
+    instructions: string;
+    expirationHours: number;
+    locations: string[];
+    timezone: string;
+    limits: {
+      perUser?: number;
+      total?: number;
+      perDay?: number;
+    };
+  }>(),
+  
+  // Validation tracking
+  validationStatus: varchar("validation_status", { length: 20 }).default("pending"), // pending, validated, failed
+  validationData: jsonb("validation_data").$type<{
+    mlbVerified?: boolean;
+    espnVerified?: boolean;
+    lastChecked?: string;
+    nextCheck?: string;
+    evidence?: any;
+  }>(),
+  
+  // Notification tracking
+  notificationData: jsonb("notification_data").$type<{
+    sentCount: number;
+    lastSent?: string;
+    platforms: string[];
+    targetUsers?: number[];
+  }>(),
+}, (table) => [
+  index("idx_promotions_active").on(table.isActive),
+  index("idx_promotions_state").on(table.state),
+  index("idx_promotions_validation_status").on(table.validationStatus),
+]);
 
 // Games
 export const games = pgTable("games", {
@@ -409,6 +462,24 @@ export type InsertDiscoveredSite = z.infer<typeof insertDiscoveredSiteSchema>;
 export type DealPage = typeof dealPages.$inferSelect;
 export type InsertDealPage = z.infer<typeof insertDealPageSchema>;
 
+// Promotion Trigger Events - tracks when deals actually fire
+export const promotionTriggerEvents = pgTable("promotion_trigger_events", {
+  id: serial("id").primaryKey(),
+  promotionId: integer("promotion_id").notNull().references(() => promotions.id),
+  externalEventId: varchar("external_event_id", { length: 100 }), // gameId, eventId from sports API
+  occurredAt: timestamp("occurred_at").notNull(),
+  redeemWindowStartAt: timestamp("redeem_window_start_at").notNull(),
+  redeemWindowEndAt: timestamp("redeem_window_end_at").notNull(),
+  evidence: jsonb("evidence").notNull(), // snapshot of game data, score, conditions met
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_trigger_events_promotion").on(table.promotionId),
+  index("idx_trigger_events_window").on(table.redeemWindowEndAt),
+  index("idx_trigger_events_external").on(table.externalEventId),
+  // Prevent duplicate events for same promotion + external event
+  index("idx_trigger_events_unique").on(table.promotionId, table.externalEventId),
+]);
+
 // Device Tokens for Push Notifications
 export const deviceTokens = pgTable("device_tokens", {
   id: serial("id").primaryKey(),
@@ -432,3 +503,7 @@ export const deviceTokens = pgTable("device_tokens", {
 export const insertDeviceTokenSchema = createInsertSchema(deviceTokens);
 export type DeviceToken = typeof deviceTokens.$inferSelect;
 export type InsertDeviceToken = z.infer<typeof insertDeviceTokenSchema>;
+
+export const insertPromotionTriggerEventSchema = createInsertSchema(promotionTriggerEvents);
+export type PromotionTriggerEvent = typeof promotionTriggerEvents.$inferSelect;
+export type InsertPromotionTriggerEvent = z.infer<typeof insertPromotionTriggerEventSchema>;

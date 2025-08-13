@@ -78,37 +78,26 @@ export class DealDiscoveryEngine {
         rateLimit: 100 // FREE: 100 queries per day
       },
       
-      // PAID: Twitter API v2 - $100/month after 500k tweets
+      // Twitter API v2 - We have credentials now
       {
         name: 'Twitter/X',
         type: 'twitter' as const,
         baseUrl: 'https://twitter.com',
         searchEndpoint: 'https://api.twitter.com/2/tweets/search/recent',
-        isActive: false, // Start disabled due to cost
+        isActive: true, // Enable since we have Bearer Token
         priority: 9,
         rateLimit: 300
       },
       
-      // FREE with limitations: Facebook Graph API
+      // Facebook - Disabled (complex setup, not needed for sports deals)
       {
         name: 'Facebook',
         type: 'facebook' as const,
         baseUrl: 'https://facebook.com',
         searchEndpoint: 'https://graph.facebook.com/search',
-        isActive: false, // Complex setup, enable later
+        isActive: false,
         priority: 7,
         rateLimit: 200
-      },
-      
-      // NEWS API - FREE TIER: NewsAPI.org offers 1000 requests/day free
-      {
-        name: 'News API',
-        type: 'website' as const,
-        baseUrl: 'https://newsapi.org',
-        searchEndpoint: 'https://newsapi.org/v2/everything',
-        isActive: true,
-        priority: 6,
-        rateLimit: 1000 // FREE: 1000 requests per day
       }
     ];
 
@@ -316,6 +305,9 @@ export class DealDiscoveryEngine {
     const apiKey = process.env.GOOGLE_API_KEY;
     const searchEngineId = process.env.GOOGLE_CSE_ID;
     
+    console.log(`   🔧 Google API Key: ${apiKey ? 'Available' : 'Missing'}`);
+    console.log(`   🔧 Google CSE ID: ${searchEngineId ? 'Available' : 'Missing'}`);
+    
     if (!apiKey || !searchEngineId) {
       console.log(`⚠️ Google Search API credentials missing - skipping`);
       return [];
@@ -354,49 +346,103 @@ export class DealDiscoveryEngine {
     }
   }
 
-  // FREE TIER: News API (1000 requests/day)
-  private async searchNewsAPI(searchTerm: string): Promise<SearchResult[]> {
-    console.log(`📰 Searching News API for: "${searchTerm}"`);
+  // Twitter/X API v2 Search
+  private async searchTwitter(searchTerm: string): Promise<SearchResult[]> {
+    console.log(`🐦 Searching Twitter/X for: "${searchTerm}"`);
     
-    const apiKey = process.env.NEWS_API_KEY;
+    const bearerToken = process.env.TWITTER_BEARER_TOKEN;
     
-    if (!apiKey) {
-      console.log(`⚠️ News API key missing - skipping`);
+    console.log(`   🔧 Twitter Bearer Token: ${bearerToken ? 'Available' : 'Missing'}`);
+    
+    if (!bearerToken) {
+      console.log(`⚠️ Twitter Bearer Token missing - skipping`);
       return [];
     }
     
     try {
-      const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchTerm)}&pageSize=20&sortBy=publishedAt&apiKey=${apiKey}`;
-      const response = await fetch(url);
+      const query = `${searchTerm} -is:retweet lang:en`;
+      const url = `https://api.twitter.com/2/tweets/search/recent?query=${encodeURIComponent(query)}&max_results=50&tweet.fields=created_at,author_id,public_metrics,text`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${bearerToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
       
       if (!response.ok) {
-        throw new Error(`News API error: ${response.status}`);
+        throw new Error(`Twitter API error: ${response.status} - ${response.statusText}`);
       }
       
       const data = await response.json();
       const results: SearchResult[] = [];
       
-      if (data.articles) {
-        for (const article of data.articles) {
+      if (data.data) {
+        for (const tweet of data.data) {
           results.push({
-            url: article.url,
-            title: article.title,
-            content: article.description,
-            source: 'news',
-            confidence: this.calculateConfidence(article.title + ' ' + article.description, searchTerm),
-            rawData: article
+            url: `https://twitter.com/i/status/${tweet.id}`,
+            title: tweet.text.substring(0, 100) + (tweet.text.length > 100 ? '...' : ''),
+            content: tweet.text,
+            source: 'twitter',
+            confidence: this.calculateConfidence(tweet.text, searchTerm),
+            rawData: tweet
           });
         }
       }
       
-      console.log(`   📊 Found ${results.length} news results`);
+      console.log(`   📊 Found ${results.length} Twitter results`);
       return results;
       
     } catch (error) {
-      console.error(`❌ News API search failed:`, error.message);
+      console.error(`❌ Twitter search failed:`, error.message);
       return [];
     }
   }
+
+  // Search official team and restaurant websites
+  private async searchOfficialWebsites(searchTerm: string): Promise<SearchResult[]> {
+    console.log(`🏢 Searching official websites for: "${searchTerm}"`);
+    
+    // Official website URLs for LA teams and major restaurants
+    const officialSites = [
+      // LA Dodgers
+      'site:mlb.com/dodgers',
+      'site:dodgers.com',
+      
+      // Major restaurant chains in LA
+      'site:mcdonalds.com',
+      'site:pandaexpress.com', 
+      'site:jackinthebox.com',
+      'site:deltaco.com',
+      'site:ampm.com',
+      'site:subway.com',
+      'site:tacobell.com'
+    ];
+    
+    const allResults: SearchResult[] = [];
+    
+    // Use Google to search each official site
+    for (const siteQuery of officialSites.slice(0, 3)) { // Limit to avoid hitting API limits
+      const fullQuery = `${siteQuery} ${searchTerm} promotion OR deal OR free`;
+      const results = await this.searchGoogle(fullQuery);
+      
+      // Mark these as higher confidence since they're from official sources
+      const boostedResults = results.map(result => ({
+        ...result,
+        source: 'official_website',
+        confidence: Math.min(result.confidence + 0.1, 1.0) // Boost confidence by 10%
+      }));
+      
+      allResults.push(...boostedResults);
+      
+      // Rate limiting pause
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+    
+    console.log(`   📊 Found ${allResults.length} official website results`);
+    return allResults;
+  }
+
 
   private calculateConfidence(content: string, searchTerm: string): number {
     const lowerContent = content.toLowerCase();
@@ -405,6 +451,48 @@ export class DealDiscoveryEngine {
     
     // STRICT FILTERING: Start with 0, must earn confidence through specific patterns
     let score = 0;
+    
+    // === LOCATION FILTERING: Must be LA/California focused ===
+    const wrongLocationPatterns = [
+      /houston/i,
+      /texas/i,
+      /dallas/i,
+      /austin/i,
+      /san antonio/i,
+      /astros/i,
+      /rangers/i,
+      /cowboys/i,
+      /\btx\b/i,
+      /new york/i,
+      /chicago/i,
+      /boston/i,
+      /philadelphia/i,
+      /miami/i,
+      /atlanta/i,
+      /detroit/i,
+      /seattle/i
+    ];
+    
+    // IMMEDIATE REJECTION for wrong geographic areas
+    if (wrongLocationPatterns.some(pattern => pattern.test(lowerContent))) {
+      console.log(`   ❌ REJECTED: Wrong geographic location detected`);
+      return 0;
+    }
+    
+    // BOOST for LA/California content
+    const laLocationPatterns = [
+      /los angeles/i,
+      /\bla\b/i,
+      /california/i,
+      /\bca\b/i,
+      /southern california/i,
+      /socal/i,
+      /west coast/i,
+      /dodgers/i,
+      /angels/i
+    ];
+    
+    const hasLALocation = laLocationPatterns.some(pattern => pattern.test(lowerContent));
     
     // === TIER 1: PERFECT MATCHES (90-100% confidence) ===
     
@@ -431,17 +519,23 @@ export class DealDiscoveryEngine {
     const hasSportsTrigger = sportsTriggersExact.some(trigger => lowerContent.includes(trigger));
     const hasFreeWord = lowerContent.includes('free');
     
-    // Perfect combination: Team + Restaurant + Sports Trigger + Free
-    if (hasTeam && hasRestaurant && hasSportsTrigger && hasFreeWord) {
-      score = 0.95; // Near-perfect for specific deals
-      console.log(`   🎯 TIER 1: Perfect sports deal combo detected - 95% confidence`);
+    // Perfect combination: Team + Restaurant + Sports Trigger + Free + LA Location
+    if (hasTeam && hasRestaurant && hasSportsTrigger && hasFreeWord && hasLALocation) {
+      score = 0.95; // Near-perfect for specific LA deals
+      console.log(`   🎯 TIER 1: Perfect LA sports deal combo detected - 95% confidence`);
       return score;
     }
     
     // === TIER 2: ADMIN REVIEW READY (90%+ confidence) ===
     
-    // Pattern 3: Team + Restaurant + Promotional details
+    // Pattern 3: Team + Restaurant + Promotional details + LA Location required
     if (hasTeam && hasRestaurant && (hasFreeWord || lowerContent.includes('deal'))) {
+      // MUST have LA location context for restaurant deals to avoid other cities
+      if (!hasLALocation) {
+        console.log(`   ❌ REJECTED: Team/restaurant deal without LA location context`);
+        return 0;
+      }
+      
       // Additional validation for genuine promotional content
       const promotionalIndicators = [
         /with\s+purchase/i,
@@ -456,13 +550,13 @@ export class DealDiscoveryEngine {
       
       if (promotionalIndicators.some(pattern => pattern.test(originalContent))) {
         score = 0.95;
-        console.log(`   🎯 TIER 2: Complete promotional deal - 95% confidence`);
+        console.log(`   🎯 TIER 2: Complete LA promotional deal - 95% confidence`);
         return score;
       }
       
-      // Must have both team AND restaurant to get 90%
+      // Must have team AND restaurant AND LA location to get 90%
       score = 0.90;
-      console.log(`   🎯 TIER 2: Team restaurant combination - 90% confidence`);
+      console.log(`   🎯 TIER 2: LA team restaurant combination - 90% confidence`);
       return score;
     }
     
@@ -608,22 +702,24 @@ export class DealDiscoveryEngine {
     
     const allResults: DiscoveredSite[] = [];
     
-    // Enhanced search terms prioritizing social media effectiveness
+    // Enhanced search terms prioritizing LA geographic targeting
     const socialMediaTerms = [
-      'dodgers panda express',
-      'dodgers mcdonalds', 
-      'dodgers jack in the box',
-      'dodgers ampm',
-      'dodgers del taco'
+      'los angeles dodgers panda express',
+      'la dodgers mcdonalds', 
+      'dodgers jack in the box california',
+      'dodgers ampm los angeles',
+      'dodgers del taco la'
     ];
     
     // Use only the most effective search terms for precision
     const topTerms = this.activeSearchTerms.slice(0, this.DISCOVERY_LIMITS.SEARCH_TERMS_ACTIVE);
     const precisionSocialTerms = [
-      'dodgers panda express free',
-      'dodgers mcdonalds deal',
-      'dodgers home run free food',
-      'la dodgers win promotion'
+      'los angeles dodgers panda express free',
+      'la dodgers mcdonalds deal',
+      'dodgers home run free food california',
+      'la dodgers win promotion los angeles',
+      'dodgers stadium area food deals',
+      'echo park dodgers restaurant promotions'
     ];
     
     const combinedTerms = [...topTerms, ...precisionSocialTerms.map(term => ({
@@ -644,11 +740,14 @@ export class DealDiscoveryEngine {
       // Enhanced Google search with social media targeting
       const googleResults = await this.searchGoogleEnhanced(searchTerm.term);
       
-      // Search News API (free tier)
-      const newsResults = await this.searchNewsAPI(searchTerm.term);
+      // Search Twitter/X API
+      const twitterResults = await this.searchTwitter(searchTerm.term);
+      
+      // Search official team/restaurant websites
+      const websiteResults = await this.searchOfficialWebsites(searchTerm.term);
       
       // Combine and process results with quality filtering
-      const allSearchResults = [...redditResults, ...googleResults, ...newsResults];
+      const allSearchResults = [...redditResults, ...googleResults, ...twitterResults, ...websiteResults];
       
       // Sort by confidence (highest first) and limit results per term
       const qualityResults = allSearchResults

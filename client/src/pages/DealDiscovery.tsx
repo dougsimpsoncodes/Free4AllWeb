@@ -15,7 +15,6 @@ import {
   XCircle, 
   Clock, 
   Globe,
-  Target,
   AlertCircle,
   Zap,
   BarChart3,
@@ -61,13 +60,12 @@ export default function DealDiscovery() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("sites");
-  const [precisionMode, setPrecisionMode] = useState(false);
 
   // Query for discovered sites
   const { data: sitesData, isLoading: sitesLoading } = useQuery({
-    queryKey: ["/api/admin/discovery/sites", precisionMode ? "precision" : "all"],
+    queryKey: ["/api/admin/discovery/sites"],
     queryFn: async () => {
-      const response = await apiRequest("GET", `/api/admin/discovery/sites?${precisionMode ? 'precision=true&' : ''}limit=50`);
+      const response = await apiRequest("GET", `/api/admin/discovery/sites?limit=50`);
       const data = await response.json();
       console.log('Sites data:', data); // Debug logging
       return data;
@@ -77,9 +75,9 @@ export default function DealDiscovery() {
 
   // Query for pending sites
   const { data: pendingData, isLoading: pendingLoading } = useQuery({
-    queryKey: ["/api/admin/discovery/pending", precisionMode ? "precision" : "all"],
+    queryKey: ["/api/admin/discovery/pending"],
     queryFn: async () => {
-      const response = await apiRequest("GET", `/api/admin/discovery/pending?${precisionMode ? 'precision=true&' : ''}limit=50`);
+      const response = await apiRequest("GET", `/api/admin/discovery/pending?limit=50`);
       const data = await response.json();
       console.log('Pending data:', data); // Debug logging
       return data;
@@ -232,24 +230,9 @@ export default function DealDiscovery() {
           <p className="text-gray-600 dark:text-gray-400">
             AI-powered LA Dodgers deal discovery with integrated X/Twitter search • Confidence scoring prioritizes sports relevance
           </p>
-          {precisionMode && (
-            <Badge className="mt-2 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
-              <Target className="h-3 w-3 mr-1" />
-              Precision Mode: Showing only authentic deals (95.9% false positives filtered)
-            </Badge>
-          )}
         </div>
         
         <div className="flex items-center space-x-2">
-          <Button
-            onClick={() => setPrecisionMode(!precisionMode)}
-            variant={precisionMode ? "default" : "outline"}
-            className={precisionMode ? "bg-green-600 hover:bg-green-700 text-white" : "border-green-600 text-green-600 hover:bg-green-50"}
-          >
-            <Target className="h-4 w-4 mr-2" />
-            Precision Mode {precisionMode ? "ON" : "OFF"}
-          </Button>
-          
           <Button 
             onClick={() => runDiscoveryMutation.mutate()}
             disabled={runDiscoveryMutation.isPending}
@@ -277,9 +260,7 @@ export default function DealDiscovery() {
             <div className="flex items-center space-x-2">
               <Globe className="h-5 w-5 text-blue-500" />
               <div>
-                <p className="text-sm font-medium">
-                  {precisionMode ? "Authentic Deals" : "Total Sites"}
-                </p>
+                <p className="text-sm font-medium">Total Sites</p>
                 <p className="text-2xl font-bold">{sites.length}</p>
               </div>
             </div>
@@ -301,7 +282,7 @@ export default function DealDiscovery() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
-              <Target className="h-5 w-5 text-green-500" />
+              <Zap className="h-5 w-5 text-green-500" />
               <div>
                 <p className="text-sm font-medium">Active Sources</p>
                 <p className="text-2xl font-bold">{sources.filter((s: DiscoverySource) => s.isActive).length}</p>
@@ -418,15 +399,18 @@ export default function DealDiscovery() {
                                     <XCircle className="h-3 w-3 mr-1" />
                                     Reject
                                   </Button>
-                                  <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={() => setLocation(`/admin/deal-template?siteId=${site.id}&title=${encodeURIComponent(site.title)}&restaurant=${encodeURIComponent(site.restaurantDetected || '')}`)}
-                                    className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
-                                  >
-                                    ✨ Create Deal Page
-                                  </Button>
                                 </>
+                              )}
+                              {/* Add Verified Deal button for all statuses except rejected */}
+                              {site.status !== 'rejected' && (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => setLocation(`/admin?siteId=${site.id}`)}
+                                  className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
+                                >
+                                  + Add Verified Deal
+                                </Button>
                               )}
                             </div>
                           </div>
@@ -543,11 +527,11 @@ export default function DealDiscovery() {
                               <Button
                                 variant="default"
                                 size="sm"
-                                onClick={() => setLocation(`/admin/deal-template?siteId=${site.id}&title=${encodeURIComponent(site.title)}&restaurant=${encodeURIComponent(site.restaurantDetected || '')}`)}
-                                className="bg-purple-600 hover:bg-purple-700 text-white w-full sm:w-auto"
-                                title="Create a deal page from this discovery"
+                                onClick={() => setLocation(`/admin?siteId=${site.id}`)}
+                                className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
+                                title="Add this as a verified promotion"
                               >
-                                ✨ Create Deal Page
+                                + Add Verified Deal
                               </Button>
                             </div>
                           </div>

@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free4All - Home Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(to bottom right, #eff6ff, white, #f0fdf4);
+            min-height: 100vh;
+        }
+        
+        /* Navigation */
+        .navbar {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 0 16px;
+        }
+        
+        .nav-container {
+            max-width: 1280px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 64px;
+        }
+        
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo-icon {
+            font-size: 24px;
+        }
+        
+        .logo-text {
+            font-size: 20px;
+            font-weight: 700;
+            color: #111827;
+        }
+        
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .welcome-text {
+            font-size: 14px;
+            color: #6b7280;
+        }
+        
+        .nav-link {
+            font-size: 14px;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        
+        .nav-link-admin {
+            color: #2563eb;
+        }
+        
+        .nav-link-admin:hover {
+            color: #1d4ed8;
+        }
+        
+        .nav-link-analytics {
+            color: #16a34a;
+        }
+        
+        .nav-link-analytics:hover {
+            color: #15803d;
+        }
+        
+        /* Main Content */
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 32px 16px;
+        }
+        
+        /* Deals Header */
+        .deals-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .deals-title-section {
+            flex: 1;
+        }
+        
+        .deals-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 8px;
+        }
+        
+        .deals-subtitle {
+            color: #6b7280;
+            font-size: 16px;
+        }
+        
+        .deals-stats {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #111827;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        
+        .refresh-btn {
+            background: white;
+            border: 1px solid #d1d5db;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        
+        .refresh-btn:hover {
+            background: #f9fafb;
+            border-color: #3b82f6;
+        }
+        
+        /* Filter Bar */
+        .filter-bar {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .confidence-slider {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .slider {
+            width: 100%;
+        }
+        
+        .confidence-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2563eb;
+        }
+        
+        /* Deal Cards Grid */
+        .deals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        
+        .deal-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .deal-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+        
+        .deal-card-header {
+            padding: 16px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+        }
+        
+        .deal-restaurant {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 4px;
+        }
+        
+        .deal-title {
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+        
+        .deal-card-body {
+            padding: 16px;
+        }
+        
+        .deal-description {
+            font-size: 14px;
+            color: #4b5563;
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+        
+        .deal-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .badge-confidence-high {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .badge-confidence-medium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .badge-confidence-low {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        .badge-time {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .badge-team {
+            background: #fce7f3;
+            color: #9f1239;
+        }
+        
+        .deal-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-view {
+            flex: 1;
+            padding: 8px;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            color: #374151;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        
+        .btn-view:hover {
+            background: #f9fafb;
+            border-color: #3b82f6;
+            color: #2563eb;
+        }
+        
+        .btn-claim {
+            flex: 1;
+            padding: 8px;
+            background: #3b82f6;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-claim:hover {
+            background: #2563eb;
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+        
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .empty-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        @media (max-width: 768px) {
+            .deals-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .deals-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .deals-stats {
+                justify-content: space-between;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-left">
+                <span class="logo-icon">🍔</span>
+                <h1 class="logo-text">Free4All</h1>
+            </div>
+            <div class="nav-right">
+                <span class="welcome-text">Welcome, Doug!</span>
+                <a href="/admin" class="nav-link nav-link-admin">Admin</a>
+                <a href="/analytics" class="nav-link nav-link-analytics">Analytics</a>
+                <a href="/api/logout" class="nav-link nav-link-admin">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Deals Header -->
+        <div class="deals-header">
+            <div class="deals-title-section">
+                <h2 class="deals-title">Active Deals & Promotions</h2>
+                <p class="deals-subtitle">Real-time deals discovered from restaurants and social media</p>
+            </div>
+            <div class="deals-stats">
+                <div class="stat-card">
+                    <span class="stat-value">156</span>
+                    <span class="stat-label">Total Deals</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value">23</span>
+                    <span class="stat-label">Active Now</span>
+                </div>
+                <button class="refresh-btn">
+                    <span>🔄</span>
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <span class="filter-label">Confidence Filter:</span>
+            <div class="confidence-slider">
+                <input type="range" class="slider" min="0" max="100" value="30">
+            </div>
+            <span class="confidence-value">30%+</span>
+        </div>
+
+        <!-- Deal Cards Grid -->
+        <div class="deals-grid">
+            <!-- Deal Card 1 -->
+            <div class="deal-card">
+                <div class="deal-card-header">
+                    <div class="deal-restaurant">McDonald's</div>
+                    <div class="deal-title">Free Big Mac when Dodgers score 5+ runs</div>
+                </div>
+                <div class="deal-card-body">
+                    <p class="deal-description">
+                        Get a FREE Big Mac when the Dodgers score 5 or more runs at home games! Valid until 11:59 PM on game day.
+                    </p>
+                    <div class="deal-meta">
+                        <span class="badge badge-confidence-high">⚡ 96% confidence</span>
+                        <span class="badge badge-time">🕐 2h ago</span>
+                        <span class="badge badge-team">⚾ Dodgers</span>
+                    </div>
+                    <div class="deal-actions">
+                        <button class="btn-view">
+                            <span>🔗</span>
+                            View Source
+                        </button>
+                        <button class="btn-claim">Claim Deal</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Deal Card 2 -->
+            <div class="deal-card">
+                <div class="deal-card-header">
+                    <div class="deal-restaurant">Panda Express</div>
+                    <div class="deal-title">50% off Orange Chicken on Dodgers wins</div>
+                </div>
+                <div class="deal-card-body">
+                    <p class="deal-description">
+                        Celebrating Dodgers victories with half-price Orange Chicken! Valid the day after any Dodgers win at participating locations.
+                    </p>
+                    <div class="deal-meta">
+                        <span class="badge badge-confidence-high">⚡ 92% confidence</span>
+                        <span class="badge badge-time">🕐 4h ago</span>
+                        <span class="badge badge-team">⚾ Dodgers</span>
+                    </div>
+                    <div class="deal-actions">
+                        <button class="btn-view">
+                            <span>🔗</span>
+                            View Source
+                        </button>
+                        <button class="btn-claim">Claim Deal</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Deal Card 3 -->
+            <div class="deal-card">
+                <div class="deal-card-header">
+                    <div class="deal-restaurant">Jack in the Box</div>
+                    <div class="deal-title">Free Jumbo Jack with 3+ home runs</div>
+                </div>
+                <div class="deal-card-body">
+                    <p class="deal-description">
+                        HOME RUN SPECIAL! When Dodgers hit 3+ home runs in a game, get a FREE Jumbo Jack the next day with any purchase.
+                    </p>
+                    <div class="deal-meta">
+                        <span class="badge badge-confidence-high">⚡ 89% confidence</span>
+                        <span class="badge badge-time">🕐 6h ago</span>
+                        <span class="badge badge-team">⚾ Dodgers</span>
+                    </div>
+                    <div class="deal-actions">
+                        <button class="btn-view">
+                            <span>🔗</span>
+                            View Source
+                        </button>
+                        <button class="btn-claim">Claim Deal</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Deal Card 4 -->
+            <div class="deal-card">
+                <div class="deal-card-header">
+                    <div class="deal-restaurant">ampm</div>
+                    <div class="deal-title">Free coffee when Lakers win at home</div>
+                </div>
+                <div class="deal-card-body">
+                    <p class="deal-description">
+                        Celebrate Lakers home victories with a FREE coffee of any size! Valid until noon the day after a home win.
+                    </p>
+                    <div class="deal-meta">
+                        <span class="badge badge-confidence-medium">⚡ 78% confidence</span>
+                        <span class="badge badge-time">🕐 1d ago</span>
+                        <span class="badge badge-team">🏀 Lakers</span>
+                    </div>
+                    <div class="deal-actions">
+                        <button class="btn-view">
+                            <span>🔗</span>
+                            View Source
+                        </button>
+                        <button class="btn-claim">Claim Deal</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Deal Card 5 -->
+            <div class="deal-card">
+                <div class="deal-card-header">
+                    <div class="deal-restaurant">Subway</div>
+                    <div class="deal-title">BOGO footlong when Rams score 30+ points</div>
+                </div>
+                <div class="deal-card-body">
+                    <p class="deal-description">
+                        Buy one footlong, get one FREE when the Rams score 30 or more points! Use code RAMS30 in the app.
+                    </p>
+                    <div class="deal-meta">
+                        <span class="badge badge-confidence-medium">⚡ 71% confidence</span>
+                        <span class="badge badge-time">🕐 2d ago</span>
+                        <span class="badge badge-team">🏈 Rams</span>
+                    </div>
+                    <div class="deal-actions">
+                        <button class="btn-view">
+                            <span>🔗</span>
+                            View Source
+                        </button>
+                        <button class="btn-claim">Claim Deal</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Deal Card 6 -->
+            <div class="deal-card">
+                <div class="deal-card-header">
+                    <div class="deal-restaurant">Del Taco</div>
+                    <div class="deal-title">Free taco Tuesday after Angels win</div>
+                </div>
+                <div class="deal-card-body">
+                    <p class="deal-description">
+                        Angels win = FREE regular taco on Tuesday! No purchase necessary, limit 1 per customer.
+                    </p>
+                    <div class="deal-meta">
+                        <span class="badge badge-confidence-low">⚡ 65% confidence</span>
+                        <span class="badge badge-time">🕐 3d ago</span>
+                        <span class="badge badge-team">⚾ Angels</span>
+                    </div>
+                    <div class="deal-actions">
+                        <button class="btn-view">
+                            <span>🔗</span>
+                            View Source
+                        </button>
+                        <button class="btn-claim">Claim Deal</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

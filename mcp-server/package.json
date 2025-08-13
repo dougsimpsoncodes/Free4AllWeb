@@ -1,0 +1,25 @@
+{
+  "name": "free4all-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for Free4AllWeb deal discovery and notifications",
+  "type": "module",
+  "main": "dist/free4all-mcp.js",
+  "bin": {
+    "free4all-mcp": "./dist/free4all-mcp.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx free4all-mcp.ts",
+    "start": "node dist/free4all-mcp.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.2",
+    "@supabase/supabase-js": "^2.39.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Analytics Dashboard - Free4AllWeb</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+            min-height: 100vh;
+            padding: 24px;
+        }
+        
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+        }
+        
+        /* Header */
+        .header {
+            margin-bottom: 24px;
+        }
+        
+        .header h1 {
+            font-size: 30px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            color: #6b7280;
+            font-size: 16px;
+        }
+        
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .metric-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .metric-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #6b7280;
+        }
+        
+        .metric-icon {
+            width: 16px;
+            height: 16px;
+            color: #9ca3af;
+        }
+        
+        .metric-value {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        
+        .metric-value.green {
+            color: #10b981;
+        }
+        
+        .metric-subtitle {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+        
+        /* Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .content-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        
+        .card-header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #111827;
+        }
+        
+        .card-content {
+            padding: 20px;
+        }
+        
+        /* User List */
+        .user-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .user-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+        
+        .user-info h4 {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+        
+        .user-info p {
+            font-size: 14px;
+            color: #6b7280;
+        }
+        
+        .user-meta {
+            text-align: right;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        
+        .badge-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        .user-date {
+            font-size: 12px;
+            color: #9ca3af;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        /* Team List */
+        .team-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .team-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .team-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .team-rank {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #dbeafe;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        
+        .team-details h4 {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+        
+        .team-details p {
+            font-size: 14px;
+            color: #6b7280;
+        }
+        
+        .badge-outline {
+            background: white;
+            border: 1px solid #d1d5db;
+            color: #374151;
+        }
+        
+        /* System Health */
+        .health-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+        }
+        
+        .health-item {
+            text-align: center;
+        }
+        
+        .health-icon {
+            width: 32px;
+            height: 32px;
+            margin: 0 auto 8px;
+        }
+        
+        .health-icon.green {
+            color: #10b981;
+        }
+        
+        .health-icon.yellow {
+            color: #f59e0b;
+        }
+        
+        .health-title {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        
+        .health-subtitle {
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-online {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .status-setup {
+            background: white;
+            border: 1px solid #d1d5db;
+            color: #374151;
+        }
+        
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>User Analytics Dashboard</h1>
+            <p>Monitor user engagement and notification performance</p>
+        </div>
+
+        <!-- Key Metrics -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">Total Users</span>
+                    <span class="metric-icon">👥</span>
+                </div>
+                <div class="metric-value">1,247</div>
+                <p class="metric-subtitle">+12% from last week</p>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">Active Users</span>
+                    <span class="metric-icon">📈</span>
+                </div>
+                <div class="metric-value green">856</div>
+                <p class="metric-subtitle">Users with active alerts</p>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">Notifications Sent</span>
+                    <span class="metric-icon">🔔</span>
+                </div>
+                <div class="metric-value">23,491</div>
+                <p class="metric-subtitle">This month</p>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">Success Rate</span>
+                    <span class="metric-icon">✅</span>
+                </div>
+                <div class="metric-value green">99.2%</div>
+                <p class="metric-subtitle">Delivery success rate</p>
+            </div>
+        </div>
+
+        <!-- Content Grid -->
+        <div class="content-grid">
+            <!-- Recent Signups -->
+            <div class="content-card">
+                <div class="card-header">
+                    <h2 class="card-title">Recent Signups</h2>
+                </div>
+                <div class="card-content">
+                    <div class="user-list">
+                        <div class="user-item">
+                            <div class="user-info">
+                                <h4>Michael Rodriguez</h4>
+                                <p>mike.rodriguez@gmail.com</p>
+                            </div>
+                            <div class="user-meta">
+                                <span class="badge badge-secondary">Los Angeles Dodgers</span>
+                                <div class="user-date">
+                                    <span>🕐</span>
+                                    Today
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="user-item">
+                            <div class="user-info">
+                                <h4>Sarah Chen</h4>
+                                <p>sarah.chen@yahoo.com</p>
+                            </div>
+                            <div class="user-meta">
+                                <span class="badge badge-secondary">LA Lakers</span>
+                                <div class="user-date">
+                                    <span>🕐</span>
+                                    Yesterday
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="user-item">
+                            <div class="user-info">
+                                <h4>David Kim</h4>
+                                <p>d.kim@outlook.com</p>
+                            </div>
+                            <div class="user-meta">
+                                <span class="badge badge-secondary">LA Rams</span>
+                                <div class="user-date">
+                                    <span>🕐</span>
+                                    2 days ago
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="user-item">
+                            <div class="user-info">
+                                <h4>Jessica Martinez</h4>
+                                <p>jess.martinez@gmail.com</p>
+                            </div>
+                            <div class="user-meta">
+                                <span class="badge badge-secondary">Los Angeles Dodgers</span>
+                                <div class="user-date">
+                                    <span>🕐</span>
+                                    3 days ago
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="user-item">
+                            <div class="user-info">
+                                <h4>Alex Thompson</h4>
+                                <p>alex.t@hotmail.com</p>
+                            </div>
+                            <div class="user-meta">
+                                <span class="badge badge-secondary">LA Angels</span>
+                                <div class="user-date">
+                                    <span>🕐</span>
+                                    4 days ago
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Teams -->
+            <div class="content-card">
+                <div class="card-header">
+                    <h2 class="card-title">Most Popular Teams</h2>
+                </div>
+                <div class="card-content">
+                    <div class="team-list">
+                        <div class="team-item">
+                            <div class="team-info">
+                                <div class="team-rank">#1</div>
+                                <div class="team-details">
+                                    <h4>Los Angeles Dodgers</h4>
+                                    <p>Los Angeles</p>
+                                </div>
+                            </div>
+                            <span class="badge badge-outline">487 users</span>
+                        </div>
+
+                        <div class="team-item">
+                            <div class="team-info">
+                                <div class="team-rank">#2</div>
+                                <div class="team-details">
+                                    <h4>LA Lakers</h4>
+                                    <p>Los Angeles</p>
+                                </div>
+                            </div>
+                            <span class="badge badge-outline">312 users</span>
+                        </div>
+
+                        <div class="team-item">
+                            <div class="team-info">
+                                <div class="team-rank">#3</div>
+                                <div class="team-details">
+                                    <h4>LA Rams</h4>
+                                    <p>Los Angeles</p>
+                                </div>
+                            </div>
+                            <span class="badge badge-outline">198 users</span>
+                        </div>
+
+                        <div class="team-item">
+                            <div class="team-info">
+                                <div class="team-rank">#4</div>
+                                <div class="team-details">
+                                    <h4>LA Angels</h4>
+                                    <p>Los Angeles</p>
+                                </div>
+                            </div>
+                            <span class="badge badge-outline">156 users</span>
+                        </div>
+
+                        <div class="team-item">
+                            <div class="team-info">
+                                <div class="team-rank">#5</div>
+                                <div class="team-details">
+                                    <h4>LA Kings</h4>
+                                    <p>Los Angeles</p>
+                                </div>
+                            </div>
+                            <span class="badge badge-outline">94 users</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Health -->
+        <div class="content-card">
+            <div class="card-header">
+                <h2 class="card-title">System Health</h2>
+            </div>
+            <div class="card-content">
+                <div class="health-grid">
+                    <div class="health-item">
+                        <div class="health-icon green">✅</div>
+                        <h3 class="health-title">Email Service</h3>
+                        <p class="health-subtitle">MailerSend API</p>
+                        <span class="status-badge status-online">Online</span>
+                    </div>
+
+                    <div class="health-item">
+                        <div class="health-icon green">✅</div>
+                        <h3 class="health-title">Database</h3>
+                        <p class="health-subtitle">Neon PostgreSQL</p>
+                        <span class="status-badge status-online">Healthy</span>
+                    </div>
+
+                    <div class="health-item">
+                        <div class="health-icon yellow">⚠️</div>
+                        <h3 class="health-title">SMS Service</h3>
+                        <p class="health-subtitle">Twilio (Pending)</p>
+                        <span class="status-badge status-setup">Setup Required</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

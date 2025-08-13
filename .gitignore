@@ -12,3 +12,16 @@ vite.config.ts.*
 .env.testing
 .env.production
 .env.backup*
+
+# APNs Credentials - CRITICAL SECURITY
+credentials/
+*.p8
+*.pem
+*AuthKey*
+apns-key*
+apns_key*
+
+# Other sensitive files
+secrets/
+private-keys/
+certs/
