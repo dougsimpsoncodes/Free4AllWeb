@@ -84,6 +84,7 @@ export interface IStorage {
   getGames(): Promise<Game[]>;
   getRecentGames(teamId: number, limit?: number): Promise<Game[]>;
   getGame(id: number): Promise<Game | undefined>;
+  getGameByExternalId(externalId: string): Promise<Game | undefined>;
   createGame(game: InsertGame): Promise<Game>;
   updateGame(id: number, game: Partial<InsertGame>): Promise<Game>;
 
@@ -424,6 +425,11 @@ export class DatabaseStorage implements IStorage {
 
   async getGame(id: number): Promise<Game | undefined> {
     const [game] = await db.select().from(games).where(eq(games.id, id));
+    return game;
+  }
+
+  async getGameByExternalId(externalId: string): Promise<Game | undefined> {
+    const [game] = await db.select().from(games).where(eq(games.externalId, externalId));
     return game;
   }
 

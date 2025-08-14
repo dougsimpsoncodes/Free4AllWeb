@@ -1840,6 +1840,277 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== PHASE 1: VALIDATION SYSTEM ENDPOINTS =====
+  
+  // Enhanced Sports API endpoint
+  app.get('/api/admin/sports/game/:gameId', isAdmin, async (req: any, res) => {
+    try {
+      const { gameId } = req.params;
+      const { timeout = 8000, useConditionalRequest = true } = req.query;
+      
+      console.log(`🎯 Fetching enhanced sports data for game ${gameId}`);
+      
+      const { enhancedSportsApi } = await import('./services/enhancedSportsApiService.js');
+      const result = await enhancedSportsApi.getGameData(gameId, {
+        useConditionalRequest: useConditionalRequest === 'true',
+        timeout: parseInt(timeout as string) || 8000
+      });
+      
+      res.json({
+        success: result.success,
+        gameId,
+        sources: result.sources || [],
+        consensus: result.consensus,
+        evidenceHash: result.evidenceHash,
+        error: result.error,
+        metadata: {
+          sourcesCount: result.sources?.length || 0,
+          fetchedAt: new Date().toISOString(),
+          fetchedBy: req.user?.email
+        }
+      });
+    } catch (error) {
+      console.error(`Error fetching sports data for game ${req.params.gameId}:`, error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch game data',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Consensus Engine endpoint
+  app.post('/api/admin/consensus/evaluate', isAdmin, async (req: any, res) => {
+    try {
+      const { gameId, promotionId } = req.body;
+      
+      if (!gameId) {
+        return res.status(400).json({
+          success: false,
+          error: 'gameId is required'
+        });
+      }
+      
+      console.log(`🎯 Evaluating consensus for game ${gameId}, promotion ${promotionId || 'N/A'}`);
+      
+      const { consensusEngine } = await import('./services/consensusEngine.js');
+      const consensus = await consensusEngine.evaluateGameConsensus(gameId, promotionId);
+      
+      res.json({
+        success: true,
+        consensus,
+        metadata: {
+          evaluatedAt: new Date().toISOString(),
+          evaluatedBy: req.user?.email
+        }
+      });
+    } catch (error) {
+      console.error('Error evaluating consensus:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to evaluate consensus',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Validation Service endpoint
+  app.post('/api/admin/validate/promotion/:promotionId/game/:gameId', isAdmin, async (req: any, res) => {
+    try {
+      const { promotionId, gameId } = req.params;
+      const { triggerCondition } = req.body;
+      
+      console.log(`🔍 Validating promotion ${promotionId} for game ${gameId}`);
+      
+      const { validationService } = await import('./services/validationService.js');
+      const validation = await validationService.validatePromotionTrigger(
+        parseInt(promotionId),
+        gameId,
+        triggerCondition || 'win_home'
+      );
+      
+      res.json({
+        success: true,
+        validation,
+        metadata: {
+          validatedAt: new Date().toISOString(),
+          validatedBy: req.user?.email
+        }
+      });
+    } catch (error) {
+      console.error(`Error validating promotion ${req.params.promotionId}:`, error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to validate promotion',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Batch validation for all promotions for a game
+  app.post('/api/admin/validate/game/:gameId', isAdmin, async (req: any, res) => {
+    try {
+      const { gameId } = req.params;
+      
+      console.log(`🎯 Validating all promotions for game ${gameId}`);
+      
+      const { validationService } = await import('./services/validationService.js');
+      const validations = await validationService.validatePromotionsForGame(gameId);
+      
+      res.json({
+        success: true,
+        gameId,
+        validations,
+        summary: {
+          totalPromotions: validations.length,
+          approved: validations.filter(v => v.validation.isValid).length,
+          needsReview: validations.filter(v => v.validation.requiresManualReview).length,
+          averageConfidence: validations.length > 0 
+            ? validations.reduce((sum, v) => sum + v.validation.confidence, 0) / validations.length 
+            : 0
+        },
+        metadata: {
+          validatedAt: new Date().toISOString(),
+          validatedBy: req.user?.email
+        }
+      });
+    } catch (error) {
+      console.error(`Error validating promotions for game ${req.params.gameId}:`, error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to validate promotions for game',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Circuit breaker status endpoint
+  app.get('/api/admin/circuit-breakers', isAdmin, async (req: any, res) => {
+    try {
+      const { circuitBreakers } = await import('./lib/circuitBreaker.js');
+      const stats = circuitBreakers.getAllStats();
+      const degradedServices = circuitBreakers.getDegradedServices();
+      
+      res.json({
+        success: true,
+        circuitBreakers: stats,
+        degradedServices,
+        summary: {
+          totalServices: Object.keys(stats).length,
+          healthyServices: Object.keys(stats).length - degradedServices.length,
+          degradedServices: degradedServices.length
+        },
+        metadata: {
+          fetchedAt: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching circuit breaker status:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch circuit breaker status'
+      });
+    }
+  });
+
+  // Rate limiter status endpoint
+  app.get('/api/admin/rate-limits', isAdmin, async (req: any, res) => {
+    try {
+      const { apiRateLimiters } = await import('./lib/rateLimiter.js');
+      
+      const rateLimiterStatus = {
+        espn: apiRateLimiters.espn.getStatus(),
+        mlb: apiRateLimiters.mlb.getStatus(),
+        google: apiRateLimiters.google.getStatus(),
+        twitter: apiRateLimiters.twitter.getStatus()
+      };
+      
+      res.json({
+        success: true,
+        rateLimiters: rateLimiterStatus,
+        summary: {
+          totalLimiters: Object.keys(rateLimiterStatus).length,
+          atCapacity: Object.values(rateLimiterStatus).filter(status => status.availableTokens === 0).length
+        },
+        metadata: {
+          fetchedAt: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching rate limiter status:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch rate limiter status'
+      });
+    }
+  });
+
+  // Evidence storage health endpoint
+  app.get('/api/admin/evidence/health', isAdmin, async (req: any, res) => {
+    try {
+      const { checkStorageHealth } = await import('./services/evidence/storage.js');
+      const health = await checkStorageHealth();
+      
+      res.json({
+        success: health.isHealthy,
+        health,
+        metadata: {
+          checkedAt: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('Error checking evidence storage health:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to check evidence storage health'
+      });
+    }
+  });
+
+  // Consensus engine metrics endpoint
+  app.get('/api/admin/consensus/metrics', isAdmin, async (req: any, res) => {
+    try {
+      const { consensusEngine } = await import('./services/consensusEngine.js');
+      const metrics = consensusEngine.getMetrics();
+      
+      res.json({
+        success: true,
+        metrics,
+        metadata: {
+          fetchedAt: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching consensus metrics:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch consensus metrics'
+      });
+    }
+  });
+
+  // Validation service metrics endpoint
+  app.get('/api/admin/validation/metrics', isAdmin, async (req: any, res) => {
+    try {
+      const { validationService } = await import('./services/validationService.js');
+      const metrics = validationService.getValidationMetrics();
+      
+      res.json({
+        success: true,
+        metrics,
+        metadata: {
+          fetchedAt: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching validation metrics:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch validation metrics'
+      });
+    }
+  });
+
   // Start the game processor on server startup
   // gameProcessor.start(); // Temporarily disabled for testing
 

@@ -507,3 +507,22 @@ export type InsertDeviceToken = z.infer<typeof insertDeviceTokenSchema>;
 export const insertPromotionTriggerEventSchema = createInsertSchema(promotionTriggerEvents);
 export type PromotionTriggerEvent = typeof promotionTriggerEvents.$inferSelect;
 export type InsertPromotionTriggerEvent = z.infer<typeof insertPromotionTriggerEventSchema>;
+
+// Immutable evidence storage for audit trails
+export const immutableEvidence = pgTable("immutable_evidence", {
+  id: serial("id").primaryKey(),
+  evidenceHash: varchar("evidence_hash", { length: 64 }).notNull().unique(),
+  storageUri: varchar("storage_uri", { length: 500 }).notNull(),
+  canonicalForm: text("canonical_form").notNull(),
+  storedAt: timestamp("stored_at").defaultNow().notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  isLocked: boolean("is_locked").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_immutable_evidence_hash").on(table.evidenceHash),
+  index("idx_immutable_evidence_stored_at").on(table.storedAt),
+]);
+
+export const insertImmutableEvidenceSchema = createInsertSchema(immutableEvidence);
+export type ImmutableEvidence = typeof immutableEvidence.$inferSelect;
+export type InsertImmutableEvidence = z.infer<typeof insertImmutableEvidenceSchema>;
